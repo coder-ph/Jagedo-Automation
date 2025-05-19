@@ -1,12 +1,12 @@
-import React from 'react';
-import Navbar from './components/Navbar'; 
+import { BrowserRouter } from 'react-router-dom'
+import Navbar from './components/Navbar'
 
-const App = () => {
+function App() {
   return (
-    <div className="min-h-screen">
+    <BrowserRouter>
       <Navbar />
-    </div>
-  );
-};
+    </BrowserRouter>
+  )
+}
 
-export default App;
+export default App
