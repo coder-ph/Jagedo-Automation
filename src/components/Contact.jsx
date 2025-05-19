@@ -153,17 +153,6 @@ const Contact = () => {
           </div>
         </div>
       </section>
-
-      {/* Map Section */}
-      <section className="py-10 bg-gray-50">
-        <div className="container mx-auto px-6">
-          <div className="bg-white p-4 rounded-lg shadow-md">
-            <div className="h-64 md:h-96 bg-gray-200 rounded-lg flex items-center justify-center">
-              [Map Placeholder]
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };
