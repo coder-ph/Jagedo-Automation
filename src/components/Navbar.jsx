@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom'; // or your preferred routing solution
-import logo from './path-to-your-logo/logo.png'; // update this path to your actual logo file
+import { Link } from 'react-router-dom';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,11 +13,10 @@ const Navbar = () => {
             <div>
               <Link to="/" className="flex items-center py-5 px-2 text-gray-700 hover:text-gray-900">
                 <img 
-                  src={logo} 
-                  alt="Company Logo" 
-                  className="h-8 w-auto mr-2" // Adjust height as needed
+                  src="/images/Japageologo.webp" 
+                  alt="Japageo Logo" 
+                  className="h-10 w-auto mr-2" 
                 />
-                <span className="font-bold text-xl text-indigo-600">Jagedo</span>
               </Link>
             </div>
           </div>
