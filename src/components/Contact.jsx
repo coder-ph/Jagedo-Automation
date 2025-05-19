@@ -104,7 +104,7 @@ const Contact = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-1">Address</h3>
-                      <p className="text-gray-600">123 Business Avenue, Suite 456<br />San Francisco, CA 94107</p>
+                      <p className="text-gray-600">123 Business Avenue, Suite 456<br />Nairobi, Kenya</p>
                     </div>
                   </div>
                   <div className="flex items-start">
@@ -115,7 +115,7 @@ const Contact = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-1">Phone</h3>
-                      <p className="text-gray-600">+1 (555) 123-4567</p>
+                      <p className="text-gray-600">+2547 123-4567</p>
                     </div>
                   </div>
                   <div className="flex items-start">
