@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
-import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram, FaMapMarkerAlt, FaPhone, FaEnvelope } from 'react-icons/fa';
+import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from 'react-icons/fa';
 
 const Footer = () => {
   return (
-    <footer className="bg-gradient-to-b from-gray-800 to-gray-900 text-white pt-12 pb-8">
+    <footer className="bg-gray-900 text-white pt-12 pb-8">
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Company Info */}
@@ -14,22 +14,21 @@ const Footer = () => {
                 alt="Jagedo Logo" 
                 className="h-10 w-auto"
               />
-              <span className="ml-2 text-xl font-bold">JAGEDO</span>
             </Link>
-            <p className="text-gray-300 mb-4">
-              Empowering your digital transformation with innovative solutions and cutting-edge technology.
+            <p className="text-gray-400 mb-4">
+              Innovative solutions for your business growth in the digital age.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-indigo-400 transition duration-300">
+              <a href="#" className="text-gray-400 hover:text-white transition duration-300">
                 <FaFacebook size={20} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-blue-400 transition duration-300">
+              <a href="#" className="text-gray-400 hover:text-white transition duration-300">
                 <FaTwitter size={20} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-blue-500 transition duration-300">
+              <a href="#" className="text-gray-400 hover:text-white transition duration-300">
                 <FaLinkedin size={20} />
               </a>
-              <a href="#" className="text-gray-400 hover:text-pink-500 transition duration-300">
+              <a href="#" className="text-gray-400 hover:text-white transition duration-300">
                 <FaInstagram size={20} />
               </a>
             </div>
@@ -37,84 +36,55 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-4 text-indigo-300">Explore</h3>
-            <ul className="space-y-3">
+            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+            <ul className="space-y-2">
               <li>
-                <Link to="/" className="text-gray-300 hover:text-indigo-400 transition duration-300 flex items-center">
-                  <span className="w-1 h-1 bg-indigo-400 rounded-full mr-2"></span>
-                  Home
-                </Link>
+                <Link to="/" className="text-gray-400 hover:text-white transition duration-300">Home</Link>
               </li>
               <li>
-                <Link to="/about" className="text-gray-300 hover:text-indigo-400 transition duration-300 flex items-center">
-                  <span className="w-1 h-1 bg-indigo-400 rounded-full mr-2"></span>
-                  About Us
-                </Link>
+                <Link to="/about" className="text-gray-400 hover:text-white transition duration-300">About Us</Link>
               </li>
               <li>
-                <Link to="/services" className="text-gray-300 hover:text-indigo-400 transition duration-300 flex items-center">
-                  <span className="w-1 h-1 bg-indigo-400 rounded-full mr-2"></span>
-                  Services
-                </Link>
+                <Link to="/services" className="text-gray-400 hover:text-white transition duration-300">Services</Link>
               </li>
               <li>
-                <Link to="/contact" className="text-gray-300 hover:text-indigo-400 transition duration-300 flex items-center">
-                  <span className="w-1 h-1 bg-indigo-400 rounded-full mr-2"></span>
-                  Contact
-                </Link>
+                <Link to="/contact" className="text-gray-400 hover:text-white transition duration-300">Contact</Link>
               </li>
             </ul>
           </div>
 
           {/* Contact Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4 text-indigo-300">Get in Touch</h3>
-            <ul className="space-y-3 text-gray-300">
+            <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
+            <ul className="space-y-2 text-gray-400">
               <li className="flex items-start">
-                <FaMapMarkerAlt className="mt-1 mr-2 text-indigo-400 flex-shrink-0" />
-                123 Business Avenue, Suite 456<br />
-                San Francisco, CA 94107
+                <svg className="w-5 h-5 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                123 Business Ave, Suite 456, San Francisco, CA
               </li>
               <li className="flex items-center">
-                <FaPhone className="mr-2 text-indigo-400" />
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
                 +1 (555) 123-4567
               </li>
               <li className="flex items-center">
-                <FaEnvelope className="mr-2 text-indigo-400" />
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
                 info@jagedo.com
               </li>
             </ul>
           </div>
-
-          {/* Services */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4 text-indigo-300">Services</h3>
-            <ul className="space-y-3 text-gray-300">
-              <li className="hover:text-indigo-400 transition duration-300">Web Development</li>
-              <li className="hover:text-indigo-400 transition duration-300">Digital Marketing</li>
-              <li className="hover:text-indigo-400 transition duration-300">Cloud Solutions</li>
-              <li className="hover:text-indigo-400 transition duration-300">Data Analytics</li>
-              <li className="hover:text-indigo-400 transition duration-300">UI/UX Design</li>
-            </ul>
-          </div>
         </div>
 
+        
+
         {/* Copyright */}
-        <div className="border-t border-gray-700 pt-6 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-gray-400 text-sm mb-2 md:mb-0">
-            © {new Date().getFullYear()} Jagedo. All rights reserved.
-          </p>
-          <div className="flex space-x-4">
-            <Link to="/privacy" className="text-gray-400 hover:text-indigo-400 text-sm transition duration-300">
-              Privacy Policy
-            </Link>
-            <Link to="/terms" className="text-gray-400 hover:text-indigo-400 text-sm transition duration-300">
-              Terms of Service
-            </Link>
-            <Link to="/cookies" className="text-gray-400 hover:text-indigo-400 text-sm transition duration-300">
-              Cookie Policy
-            </Link>
-          </div>
+        <div className="border-t border-gray-800 pt-6 text-center text-gray-500 text-sm">
+          <p>© {new Date().getFullYear()} Jagedo. All rights reserved.</p>
         </div>
       </div>
     </footer>
