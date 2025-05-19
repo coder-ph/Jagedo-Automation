@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 const Home = () => {
   // Using a high-quality business/tech image from Unsplash
-  const heroImage = "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80";
+  const heroImage = "https://media.istockphoto.com/id/615899900/photo/you-guys-came-up-with-some-great-ideas.jpg?s=612x612&w=0&k=20&c=lSKOw5iFOAkfhK2g3vEerI-PcwmVvUzTaroFxB8MSDY=";
 
   return (
     <div className="min-h-screen">
