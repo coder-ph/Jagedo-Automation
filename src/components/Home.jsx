@@ -12,14 +12,7 @@ const Home = () => {
           <div className="md:w-1/2 mb-10 md:mb-0">
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Innovative Solutions for Your Business</h1>
             <p className="text-xl mb-8">Jagedo provides cutting-edge services to help your business grow in the digital age.</p>
-            <div className="flex space-x-4">
-              <Link to="/services" className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition duration-300">
-                Our Services
-              </Link>
-              <Link to="/contact" className="border-2 border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white hover:text-indigo-600 transition duration-300">
-                Contact Us
-              </Link>
-            </div>
+            
           </div>
           <div className="md:w-1/2">
             <img 
