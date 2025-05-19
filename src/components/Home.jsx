@@ -49,7 +49,7 @@ const Home = () => {
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold mb-6">Ready to Transform Your Business?</h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">Let's discuss how we can help you achieve your goals.</p>
-          <Link to="/contact" className="bg-white text-indigo-600 px-8 py-3 rounded-lg font-medium hover:bg-gray-100 transition duration-300 inline-block">
+          <Link to="/register" className="bg-white text-indigo-600 px-8 py-3 rounded-lg font-medium hover:bg-gray-100 transition duration-300 inline-block">
             Get Started
           </Link>
         </div>
