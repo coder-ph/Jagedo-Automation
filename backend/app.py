@@ -24,6 +24,43 @@ db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
 
+# TODO: jwt configs here...
+# app.config[''] = 
+
+# Helper functions
+def validate_email(email):
+    import re
+    pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+    if not re.match(pattern, email):
+        raise ValueError('Invalid email format')
+
+def validate_phone(phone):
+    import re
+    # +2xx, 07xx, 01xx
+    pattern = r'^(?:\+2\d{7,14}|0(7\d{8}|1\d{8}))$'
+    if not re.match(pattern, phone):
+        raise ValueError('Invalid phone number format')
+
+def validate_json():
+    if not request.is_json:
+        raise ValueError('Content-Type must be application/json')
+    return request.get_json()
+
+def validate_required_fields(data, required_fields):
+    missing = [field for field in required_fields if field not in data]
+    if missing:
+        raise ValueError(f'Missing required fields: {", ".join(missing)}')
+
+def get_current_user():
+    # TODO: Implement JWT
+    return None
+
+def require_auth():
+    # TODO : require admin, require professional
+    return None
+
+
+
 # Test Routes
 @app.route('/api/test', methods=['POST', 'GET'])
 def test():
@@ -44,6 +81,42 @@ def test():
 
 
 
+
+@app.errorhandler(HTTPException)
+def handle_http_error(e):
+    return jsonify({
+        'success': False,
+        'error': e.name,
+        'message': e.description
+    }), e.code
+
+@app.errorhandler(SQLAlchemyError)
+def handle_db_error(e):
+    db.session.rollback()
+    return jsonify({
+        'success': False,
+        'error': 'Db error',
+        'message': str(e)
+    }), 500
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(e):
+    return jsonify({
+        'success': False,
+        'error': 'Unexpected error',
+        'message': str(e)
+    }), 500
+
+@app.route('/api/health')
+def health_check():
+    return jsonify({
+        'success': True,
+        'message': 'healthy api',
+    })
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', False))
