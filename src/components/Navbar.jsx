@@ -27,9 +27,7 @@ const CreativeNavbar = () => {
                 />
                 <div className={`absolute -inset-2 rounded-full bg-indigo-100/30 mix-blend-multiply group-hover:opacity-100 opacity-0 transition-opacity duration-300 ${scrolled ? 'scale-90' : 'scale-100'}`}></div>
               </div>
-              <span className={`ml-3 text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 tracking-tight transition-all duration-500 ${scrolled ? 'text-2xl' : 'text-3xl'}`}>
-                Jafredo
-              </span>
+            
             </a>
           </div>
 
