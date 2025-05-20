@@ -5,26 +5,26 @@ const HeroSection = () => {
     {
       name: 'Fundi',
       description: 'Skilled craftsmen for all your repair needs',
-      image: 'public/images/Wrench.webp', // This is correct if image is in public/images
+      image: '/images/Wrench.webp', // Removed 'public' from path
       colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Professional',
       description: 'Certified experts for specialized projects',
-      image: 'public/images/Reflector.webp',
-      colorClass: 'from-blue-500 to-blue-600'
+      image: '/images/Reflector.webp',
+      colorClass: 'from-green-500 to-green-600'
     },
     {
       name: 'Hardware',
       description: 'Quality materials and supplies',
-      image: 'public/images/Toolbox.webp',
-      colorClass: 'from-blue-500 to-blue-600'
+      image: '/images/Toolbox.webp',
+      colorClass: 'from-orange-500 to-orange-600'
     },
     {
       name: 'Contractor',
       description: 'Full-service construction professionals',
-      image: 'public/images/Helmet.webp',
-      colorClass: 'from-blue-500 to-blue-600'
+      image: '/images/Helmet.webp',
+      colorClass: 'from-purple-500 to-purple-600'
     }
   ];
 
@@ -54,27 +54,31 @@ const HeroSection = () => {
           </p>
         </div>
 
-        {/* Category cards */}
+        {/* Category cards - Updated layout */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {categories.map((category, index) => (
             <div 
               key={index}
-              className="relative group overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500"
+              className="relative group overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-white"
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${category.colorClass} opacity-90`}></div>
-              <img 
-                src={category.image} 
-                alt={category.name}
-                className="w-full h-64 object-cover mix-blend-overlay opacity-80 group-hover:opacity-90 transition-all duration-500 group-hover:scale-110"
-                onError={(e) => {
-                  e.target.onerror = null; 
-                  e.target.src = '/images/placeholder.webp'; // Add a fallback image
-                }}
-              />
-              <div className="absolute inset-0 flex flex-col justify-end p-6 z-20">
-                <h3 className="text-2xl font-bold text-white mb-2">{category.name}</h3>
-                <p className="text-white/90 mb-4">{category.description}</p>
-                <button className={`self-start px-5 py-2 bg-white text-gray-800 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors duration-300 shadow-md hover:shadow-lg`}>
+              {/* Image container with reduced height */}
+              <div className="h-48 overflow-hidden">
+                <img 
+                  src={category.image} 
+                  alt={category.name}
+                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+                  onError={(e) => {
+                    e.target.onerror = null; 
+                    e.target.src = '/images/placeholder.webp';
+                  }}
+                />
+              </div>
+              
+              {/* Content container with better contrast */}
+              <div className={`p-6 bg-gradient-to-br ${category.colorClass} text-white`}>
+                <h3 className="text-2xl font-bold mb-2">{category.name}</h3>
+                <p className="mb-4 opacity-90">{category.description}</p>
+                <button className={`px-5 py-2 bg-white text-gray-800 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors duration-300 shadow-md hover:shadow-lg`}>
                   Find {category.name}
                 </button>
               </div>
@@ -83,7 +87,6 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Add these keyframes to your global CSS */}
       <style jsx global>{`
         @keyframes float {
           0%, 100% { transform: translateY(0); }
