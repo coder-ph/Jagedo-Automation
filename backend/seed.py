@@ -52,6 +52,17 @@ def create_users(num_customers=10, num_professionals=10):
     password = "password123"  # This will be the password for all users
     password_hash = generate_password_hash(password)
     
+    # Create admin user
+    admin = User(
+        role=UserRole.ADMIN,
+        name="Admin User",
+        email="admin@admin.com",
+        password_hash=password_hash,
+        location=random.choice(kenyan_cities),
+        profile_description="System Administrator"
+    )
+    db.session.add(admin)
+    
     # Create customers
     for _ in range(num_customers):
         customer = User(

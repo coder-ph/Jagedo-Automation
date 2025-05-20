@@ -26,7 +26,7 @@
 
 ## Setup
 
-1. Create a virtual environment:
+1. Create a virtual environment (optional):
    ```bash
    python -m venv venv
    source venv/bin/activate # On Windows: venv\Scripts\activate
@@ -59,8 +59,12 @@
    flask db migrate
    flask db upgrade
    ```
+5. Seed the database
+   ```bash
+   python ./seed.py
+   ```
 
-5. Run the application:
+6. Run the application:
    ```bash
    flask run
    ```

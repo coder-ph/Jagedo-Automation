@@ -7,6 +7,7 @@ db = SQLAlchemy()
 class UserRole(str, Enum):
     CUSTOMER = 'customer'
     PROFESSIONAL = 'professional'
+    ADMIN = 'admin'
 
 class JobStatus(str, Enum):
     OPEN = 'open'
