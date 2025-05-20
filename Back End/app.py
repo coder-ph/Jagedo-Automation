@@ -177,24 +177,60 @@ def location_match_score(client_location, contractor_location):
     return 0.0, 'no_match'
 
 def calculate_bid_score(bid):
-        # NCA Level (40%)
-        nca_score = (bid.contractor.nca_level / 8) * 40  # Assuming NCA level 1-10
-        
-        # Rating (30%)
-        rating_score = (bid.contractor.average_rating / 5) * 30  # Assuming 5-star rating
-        
-        # Bid Amount (20%) - Lower bids score higher
-        lowest_bid = min(bid.job.bids, key=lambda x: x.amount).amount
-        if bid.amount == lowest_bid:
-            amount_score = 20
-        else:
-            amount_score = (lowest_bid / bid.amount) * 20
-        
-        # Success Rate (10%)
-        success_rate = (bid.contractor.successful_bids / bid.contractor.total_bids) * 100
-        success_score = (success_rate / 100) * 10
-        
-        return nca_score + rating_score + amount_score + success_score
+    """
+    Calculate a weighted score for a bid based on multiple factors
+    Returns: float score (0-100)
+    """
+    contractor = bid.contractor
+    
+    # 1. NCA Level (40% weight)
+    # Higher NCA levels (1-8) are better
+    nca_score = (contractor.nca_level / 8) * 40
+    
+    # 2. Contractor Rating (25% weight)
+    # Assuming rating is between 0-5
+    rating_score = (contractor.average_rating / 5) * 25 if contractor.average_rating else 0
+    
+    # 3. Success Rate (15% weight)
+    success_rate = 0
+    if contractor.total_bids > 0:
+        success_rate = (contractor.successful_bids / contractor.total_bids) * 100
+    success_score = (success_rate / 100) * 15
+    
+    # 4. Location Score (20% weight)
+    # Use the pre-calculated location score (0-1.0) and scale to 20%
+    location_score = (bid.location_score or 0) * 20
+    
+    # Calculate total score
+    total_score = nca_score + rating_score + success_score + location_score
+    
+    # Ensure score is within bounds
+    return max(0, min(100, total_score))
+
+def select_winning_bid(project_id):
+
+    project = Job.query.get(project_id)
+    if not project or project.status != JobStatus.OPEN:
+        return None, None
+    
+    bids = Bid.query.filter_by(
+        project_id=project_id,
+        status=BidStatus.PENDING
+    ).all()
+    
+    if not bids:
+        return None, None
+    
+    # Calculate score for each bid
+    scored_bids = []
+    for bid in bids:
+        score = calculate_bid_score(bid)
+        scored_bids.append((bid, score))
+    
+    # Sort by score (descending)
+    scored_bids.sort(key=lambda x: x[1], reverse=True)
+    
+    return scored_bids[0] if scored_bids else (None, None)
     
 def find_contractors_for_project(project_id, min_score=0.3, max_results=20):
     """
@@ -285,6 +321,74 @@ def login():
         }
     }), 200
 
+#  automatic selection of winning bid
+@app.route('/api/projects/<int:project_id>/select-winner', methods=['POST'])
+@jwt_required()
+@role_required([UserRole.ADMIN, UserRole.CUSTOMER])
+def select_winner(project_id):
+    try:
+        project = Job.query.get_or_404(project_id)
+        current_user = get_current_user()
+        
+        # Verify permissions
+        if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        # Only allow if project is still open
+        if project.status != JobStatus.OPEN:
+            return jsonify({
+                'success': False,
+                'error': 'Project is not open for bidding'
+            }), 400
+        
+        # Select winning bid
+        winning_bid, winning_score = select_winning_bid(project_id)
+        
+        if not winning_bid:
+            return jsonify({
+                'success': False,
+                'error': 'No suitable bids found'
+            }), 404
+        
+        # Update project and bid status
+        project.assigned_contractor_id = winning_bid.professional_id
+        project.status = JobStatus.AWARDED
+        winning_bid.status = BidStatus.ACCEPTED
+        
+        # Update contractor's successful bids count
+        contractor = winning_bid.contractor
+        contractor.total_bids += 1
+        contractor.successful_bids += 1
+        
+        # Recalculate success rate
+        if contractor.total_bids > 0:
+            contractor.average_rating = (
+                (contractor.average_rating * (contractor.total_bids - 1) + winning_score) 
+                / contractor.total_bids
+            )
+        
+        db.session.commit()
+        
+        # Notify winner and other bidders
+        notify_bid_accepted(winning_bid)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Winning bid selected successfully',
+            'data': {
+                'bid_id': winning_bid.id,
+                'contractor_id': winning_bid.professional_id,
+                'score': winning_score
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @app.route('/api/profile', methods=['GET'])
 @jwt_required()
@@ -332,6 +436,78 @@ def professional_dashboard():
             'active_jobs': len([bid for bid in current_user.bids if bid.status == BidStatus.ACCEPTED])
         }
     })
+    
+    # bid submission to include location matching
+@app.route('/api/projects/<int:project_id>/bids', methods=['POST'])
+@jwt_required()
+    
+def submit_bid(project_id):
+        try:
+            data = validate_json()
+            required_fields = ['amount', 'proposal', 'timeline_weeks']
+            validate_required_fields(data, required_fields)
+            
+            project = Job.query.get_or_404(project_id)
+            contractor = get_current_user()
+            
+            # Verify contractor role
+            if contractor.role != UserRole.PROFESSIONAL:
+                return jsonify({'error': 'Only professionals can submit bids'}), 403
+            
+            # Check if project is open
+            if project.status != JobStatus.OPEN:
+                return jsonify({'error': 'Project is not accepting bids'}), 400
+            
+            # Check for existing bid
+            existing_bid = Bid.query.filter_by(
+                project_id=project_id,
+                professional_id=contractor.id
+            ).first()
+            
+            if existing_bid:
+                return jsonify({'error': 'You have already submitted a bid for this project'}), 400
+            
+            # Calculate location match score
+            location_score, match_type = location_match_score(project.location, contractor.location)
+            
+            # Create bid
+            bid = Bid(
+                project_id=project_id,
+                professional_id=contractor.id,
+                amount=float(data['amount']),
+                proposal=data['proposal'],
+                timeline_weeks=int(data['timeline_weeks']),
+                location_score=location_score,
+                location_match_type=match_type,
+                status=BidStatus.PENDING
+            )
+            
+            db.session.add(bid)
+            db.session.commit()
+            
+            # Notify project owner
+            send_notification(
+                project.customer_id,
+                "New Bid Received",
+                f"A new bid has been submitted for your project: {project.title}",
+                "new_bid"
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Bid submitted successfully',
+                'data': {
+                    'bid_id': bid.id,
+                    'location_score': location_score,
+                    'match_type': match_type
+                }
+            })
+            
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': 'Failed to submit bid'}), 500
 
 # Customer only routes
 @app.route('/api/customer/dashboard', methods=['GET'])
@@ -719,20 +895,7 @@ def notify_bid_accepted(bid):
         "bid_accepted"
     )
     
-    # Notify other bidders
-    other_bids = Bid.query.filter(
-        Bid.project_id == bid.project_id,
-        Bid.id != bid.id
-    ).all()
-    
-    for other_bid in other_bids:
-        send_notification(
-            other_bid.contractor_id,
-            "Bid Status Update",
-            f"Another bid has been accepted for project {bid.project.title}",
-            "bid_rejected"
-        )
-    
+    db.session.commit()    
     
 # Notification system
 def send_notification(user_id, title, message, notification_type):
