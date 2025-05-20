@@ -410,6 +410,63 @@ def initiate_stk_push(phone, amount, account_reference, description):
     
     return response.json()
 
+# Mpesa callback
+@app.route('api/mpesa/callback', methods=['POST'])
+def mpesa_callback():
+    try:
+        data = request.get_json()
+        #verify callback is from mpesa
+        # TODO:add proper validation
+        result = data['Body']['stkCallback']['ResultCode']
+        checkout_request_id = data['Body']['stkCallback']['CheckoutRequestID']
+        merchant_request_id = data['Body']['stkCallback']['MerchantRequestID']
+        metadata = data['Body']['stkCallback']['CallbackMetadata']['Item']
+        
+        amount = None
+        mpesa_receipt = None
+        phone = None
+        
+        for item in metadata:
+            if item['Name'] == 'Amount':
+                amount = item['Value']
+            elif item['Name'] == 'MpesaReceiptNumber':
+                mpesa_receipt = item['Value']
+            elif item['Name'] == 'PhoneNumber':
+                phone = item['Value']
+                
+        if result_code == 0 and mpesa_receipt and phone:
+            return jsonify({
+                'success': True,
+                'message': 'Payment successful',
+                'data': {
+                    'amount': amount,
+                    'mpesa_receipt': mpesa_receipt,
+                    'phone': phone
+                }
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Payment failed',
+                'data': {
+                    'result_code': result_code,
+                    'checkout_request_id': checkout_request_id,
+                    'merchant_request_id': merchant_request_id,
+                    'amount': amount,
+                    'mpesa_receipt': mpesa_receipt,
+                    'phone': phone
+                }
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Payment failed',
+            'data': {
+                'error': str(e)
+            }
+        }), 500
+        
+    
 
 @app.errorhandler(HTTPException)
 def handle_http_error(e):
