@@ -16,6 +16,10 @@ from flask_jwt_extended import (
 from datetime import timedelta, datetime
 from functools import wraps
 import base64
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from twilio.rest import Client
 import requests
 
 load_dotenv()
@@ -40,6 +44,18 @@ MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE')
 MPESA_CALLBACK_URL = os.getenv('MPESA_CALLBACK_URL')
 MPESA_AUTH_TOKEN = None
 MPESA_AUTH_TOKEN_EXPIRY = None
+
+# Email configs
+SMTP_SERVER = os.getenv('SMTP_SERVER')
+SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
+SMTP_USERNAME = os.getenv('SMTP_USERNAME')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+EMAIL_FROM = os.getenv('EMAIL_FROM')
+
+# Twilio configs
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
 # Initialize extensions
 db.init_app(app)
