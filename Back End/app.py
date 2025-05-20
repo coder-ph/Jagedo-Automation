@@ -679,6 +679,44 @@ def has_document_access(user_id, document):
     
     return False, "Access denied"
 
+@app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
+@jwt_required()
+def list_project_documents(project_id):
+    """
+    List all documents for a project
+    """
+    try:
+        project = Job.query.get_or_404(project_id)
+        current_user = get_current_user()
+        
+        # Check project access
+        if current_user.role != UserRole.ADMIN and \
+           current_user.id != project.customer_id and \
+           (not project.assigned_contractor_id or current_user.id != project.assigned_contractor_id):
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Get all documents for this project
+        documents = Document.query.filter_by(project_id=project_id).all()
+        
+        # Format response
+        result = [{
+            'id': doc.id,
+            'filename': doc.filename,
+            'uploaded_at': doc.uploaded_at.isoformat(),
+            'uploaded_by': doc.uploaded_by,
+            'file_type': doc.filename.rsplit('.', 1)[-1].lower() if '.' in doc.filename else '',
+            'size': os.path.getsize(doc.filepath) if os.path.exists(doc.filepath) else 0,
+            'is_owner': doc.uploaded_by == current_user.id
+        } for doc in documents]
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def find_matching_contractors(project_id):
     """
     Find matching contractors for a project based on location and other criteria
