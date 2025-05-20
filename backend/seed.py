@@ -8,6 +8,10 @@ from models import db, User, UserRole, Job, Category, Skill, ProfessionalSkill, 
 
 fake = Faker()
 
+kenyan_cities = [
+        "Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret", "Thika", "Malindi",
+        "Kitale", "Garissa", "Nyeri", "Machakos", "Kericho", "Embu", "Naivasha"
+    ]
 
 def create_categories_and_skills():
     parent_categories = ['Construction', 'Technology', 'Healthcare', 'Education']
@@ -56,7 +60,7 @@ def create_users(num_customers=10, num_professionals=10):
             email=fake.unique.email(),
             password_hash=password_hash,
             company_name=fake.company() if random.choice([True, False]) else None,
-            location=fake.city(),
+            location=random.choice(kenyan_cities),
             profile_description=fake.paragraph() if random.random() < 0.5 else None
         )
         db.session.add(customer)
@@ -69,7 +73,7 @@ def create_users(num_customers=10, num_professionals=10):
             email=fake.unique.email(),
             password_hash=password_hash,
             company_name=fake.company() if random.choice([True, False]) else None,
-            location=fake.city(),
+            location=random.choice(kenyan_cities),
             profile_description=fake.paragraph()
         )
         db.session.add(professional)
@@ -92,7 +96,7 @@ def assign_professional_skills():
                     skill_id=skill.id,
                     certified=random.choice([True, False]),
                     years_experience=random.randint(1, 20),
-                    nca_ratings=random.choice(['A', 'B', 'C', None])
+                    nca_ratings=random.choice([f'NCA {i}' for i in range(1, 9)] + [None])
                 )
                 db.session.add(ps)
     db.session.commit()
@@ -109,7 +113,7 @@ def create_jobs(num_jobs=20):
             description=fake.text(),
             category_id=category.id,
             customer_id=customer.id,
-            location=fake.city(),
+            location=random.choice(kenyan_cities),
             status=random.choice([JobStatus.OPEN, JobStatus.OPEN, JobStatus.OPEN, JobStatus.IN_PROGRESS, JobStatus.COMPLETED]),
             budget=fake.random_int(min=500, max=10000),
             created_at=fake.date_time_this_year()
