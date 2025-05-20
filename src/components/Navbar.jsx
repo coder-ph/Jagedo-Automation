@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 const CreativeNavbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [showLoginDropdown, setShowLoginDropdown] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -15,38 +14,19 @@ const CreativeNavbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleLoginSelection = (userType) => {
-    setShowLoginDropdown(false);
-    setIsMenuOpen(false);
-    navigate(`/login?type=${userType}`);
-  };
-
   const handleSignUpClick = () => {
     navigate('/signup');
   };
 
-  const renderLoginDropdown = (isMobile = false) => (
-    <div className={`${isMobile ? 'pl-4 space-y-1' : 'absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg z-50'}`}>
-      <button
-        onClick={() => handleLoginSelection('customer')}
-        className={`block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 ${isMobile ? 'rounded-lg' : ''}`}
-      >
-        Customer
-      </button>
-      <button
-        onClick={() => handleLoginSelection('professional')}
-        className={`block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 ${isMobile ? 'rounded-lg' : ''}`}
-      >
-        Professional
-      </button>
-    </div>
-  );
+  const handleLoginClick = () => {
+    navigate('/login');
+  };
 
   const renderSignUpButton = (isMobile = false) => (
     <button
       onClick={handleSignUpClick}
       className={`relative ${isMobile ? 
-        'block w-full px-4 py-3 rounded-lg text-base font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 shadow-md' :
+        'block w-full px-4 py-3 text-base font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600' :
         'px-6 py-2.5 text-sm font-semibold text-white rounded-full overflow-hidden'
       }`}
     >
@@ -80,17 +60,13 @@ const CreativeNavbar = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <div className="flex space-x-1 relative">
-              <button 
-                onClick={() => setShowLoginDropdown(!showLoginDropdown)}
-                className="relative px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 group"
-              >
-                Login
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-600 transition-all duration-300 group-hover:w-full"></span>
-              </button>
-              {showLoginDropdown && renderLoginDropdown()}
-            </div>
-            
+            <button 
+              onClick={handleLoginClick}
+              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600"
+            >
+              Login
+            </button>
+
             <div className="relative group">
               {renderSignUpButton()}
               <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 blur opacity-75 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -117,16 +93,13 @@ const CreativeNavbar = () => {
       {/* Mobile Menu */}
       <div className={`md:hidden transition-all duration-500 ease-in-out overflow-hidden ${isMenuOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="bg-white/90 backdrop-blur-md border-t border-gray-100 shadow-xl">
-          <div className="px-2 pt-2 pb-4 space-y-2">
-            <div className="relative">
-              <button
-                onClick={() => setShowLoginDropdown(!showLoginDropdown)}
-                className="block w-full px-4 py-3 mx-2 rounded-lg text-base font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors duration-300 text-left"
-              >
-                Login
-              </button>
-              {showLoginDropdown && renderLoginDropdown(true)}
-            </div>
+          <div className="px-4 pt-4 pb-6 space-y-3">
+            <button
+              onClick={handleLoginClick}
+              className="w-full px-4 py-3 text-base font-medium text-gray-700 hover:bg-gray-100 text-left"
+            >
+              Login
+            </button>
             {renderSignUpButton(true)}
           </div>
         </div>
