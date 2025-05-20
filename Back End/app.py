@@ -5,6 +5,7 @@ from datetime import datetime
 from models import db, User, UserRole, BidStatus, JobStatus, Message
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
+from werkzeug.utils import secure_filename
 import os
 from dotenv import load_dotenv
 from flask_bcrypt import Bcrypt
@@ -12,8 +13,10 @@ from flask_jwt_extended import (
     JWTManager, create_access_token,
     jwt_required, get_jwt_identity
 )
-from datetime import timedelta
+from datetime import timedelta, datetime
 from functools import wraps
+import base64
+import requests
 
 load_dotenv()
 
@@ -75,11 +78,8 @@ def validate_required_fields(data, required_fields):
     
     # location filtering
     def get_location_hierarchy(location):
-        """
-        Convert a location string into hierarchical components (county, subcounty, ward, etc.)
-        This is a simplified version - you'll need to adapt this based on your actual location structure
-        """
-        # This is a placeholder - implement actual location parsing logic
+     
+        
         parts = location.lower().split(',')
         parts = [p.strip() for p in parts]
         return {
@@ -106,6 +106,26 @@ def validate_required_fields(data, required_fields):
         elif client['county'] and client['county'] == contractor.get('county'):
             return 0.5  
         return 0  
+    
+    def calculate_bid_score(bid):
+        # NCA Level (40%)
+        nca_score = (bid.contractor.nca_level / 8) * 40  # Assuming NCA level 1-10
+        
+        # Rating (30%)
+        rating_score = (bid.contractor.average_rating / 5) * 30  # Assuming 5-star rating
+        
+        # Bid Amount (20%) - Lower bids score higher
+        lowest_bid = min(bid.job.bids, key=lambda x: x.amount).amount
+        if bid.amount == lowest_bid:
+            amount_score = 20
+        else:
+            amount_score = (lowest_bid / bid.amount) * 20
+        
+        # Success Rate (10%)
+        success_rate = (bid.contractor.successful_bids / bid.contractor.total_bids) * 100
+        success_score = (success_rate / 100) * 10
+        
+        return nca_score + rating_score + amount_score + success_score
 
 # auth helper
 
@@ -499,6 +519,11 @@ def health_check():
         'success': True,
         'message': 'healthy api',
     })
+
+UPLOAD_FOLDER='uploads'
+allowed_extensions={'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', }
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
