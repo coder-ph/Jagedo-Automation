@@ -36,6 +36,7 @@ class User(db.Model):
     total_ratings = db.Column(db.Integer, default=0)
     successful_bids = db.Column(db.Integer, default=0)
     total_bids = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
 
     jobs = db.relationship('Job', backref='customer')
     bids = db.relationship('Bid', backref='professional')

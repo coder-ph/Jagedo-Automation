@@ -1,19 +1,19 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_migrate import Migrate
 from flask_cors import CORS
-from datetime import datetime
-from models import db, User, UserRole, BidStatus, JobStatus, Message
+from datetime import datetime, timedelta
+from models import db, User, UserRole, BidStatus, JobStatus, Message, Document, Job, Bid, Notification
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 import os
+import time
 from dotenv import load_dotenv
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
     JWTManager, create_access_token,
     jwt_required, get_jwt_identity
 )
-from datetime import timedelta, datetime
 from functools import wraps
 import base64
 import smtplib
@@ -21,6 +21,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from twilio.rest import Client
 import requests
+import json
 
 load_dotenv()
 
@@ -57,36 +58,13 @@ TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
-def send_email(to_email, subject, message):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_FROM
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText(message, 'plain'))
-        
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
-
-def send_sms(to_phone, message):
-    try:
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        message = client.messages.create(
-            body=message,
-            from_=TWILIO_PHONE_NUMBER,
-            to=to_phone
-        )
-        return True
-    except Exception as e:
-        print(f"Error sending SMS: {e}")
-        return False
+def send_notification(user_id, title, message, notification_type):
+    """
+    Send a notification to a user
+    
+    This is a wrapper around NotificationService.send for backward compatibility
+    """
+    return NotificationService.send(user_id, title, message, notification_type)
 
 # Initialize extensions
 db.init_app(app)
@@ -95,11 +73,123 @@ CORS(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
+# Constants
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
+
+# Utility Classes
+class FileHandler:
+    @staticmethod
+    def allowed_file(filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    
+    @staticmethod
+    def save_file(file, project_id):
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, f"project_{project_id}_{int(time.time())}_{filename}")
+        file.save(filepath)
+        return filename, filepath
+    
+    @staticmethod
+    def get_mime_type(filename):
+        if '.' not in filename:
+            return 'application/octet-stream'
+        ext = filename.rsplit('.', 1)[1].lower()
+        return {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'txt': 'text/plain'
+        }.get(ext, 'application/octet-stream')
+
+class NotificationService:
+    @staticmethod
+    def send(user_id, title, message, notification_type):
+        try:
+            notification = Notification(
+                user_id=user_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            # Send email notification if user has email
+            user = User.query.get(user_id)
+            if user and user.email:
+                NotificationService._send_email(user.email, title, message)
+                
+            # Send SMS if user has phone
+            if user and user.phone:
+                NotificationService._send_sms(user.phone, f"{title}: {message}")
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error sending notification: {e}")
+            db.session.rollback()
+            return False
+    
+    @staticmethod
+    def _send_email(to_email, subject, message):
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = EMAIL_FROM
+            msg['To'] = to_email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(message, 'plain'))
+            
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.send_message(msg)
+        except Exception as e:
+            print(f"Error sending email: {e}")
+    
+    @staticmethod
+    def _send_sms(to_phone, message):
+        try:
+            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            client.messages.create(
+                body=message,
+                from_=TWILIO_PHONE_NUMBER,
+                to=to_phone
+            )
+        except Exception as e:
+            print(f"Error sending SMS: {e}")
+
+class AccessControl:
+    @staticmethod
+    def project_required(f):
+        @wraps(f)
+        def decorated(project_id, *args, **kwargs):
+            project = Job.query.get_or_404(project_id)
+            current_user = get_current_user()
+            
+            if current_user.role == UserRole.ADMIN:
+                return f(project, *args, **kwargs)
+                
+            if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
+                return jsonify({'error': 'Access denied'}), 403
+                
+            if current_user.role == UserRole.PROFESSIONAL and \
+               (not project.assigned_contractor_id or project.assigned_contractor_id != current_user.id):
+                return jsonify({'error': 'Access denied'}), 403
+                
+            return f(project, *args, **kwargs)
+        return decorated
+
 def get_current_user():
     current_user_id = get_jwt_identity()
     return User.query.get(int(current_user_id))
 
-# Helper functions. validation functions unused as of now.. not handling registration on api
+
 def validate_email(email):
     import re
     pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
@@ -177,34 +267,16 @@ def location_match_score(client_location, contractor_location):
     return 0.0, 'no_match'
 
 def calculate_bid_score(bid):
-    """
-    Calculate a weighted score for a bid based on multiple factors
-    Returns: float score (0-100)
-    """
+    
     contractor = bid.contractor
-    
-    # 1. NCA Level (40% weight)
-    # Higher NCA levels (1-8) are better
     nca_score = (contractor.nca_level / 8) * 40
-    
-    # 2. Contractor Rating (25% weight)
-    # Assuming rating is between 0-5
     rating_score = (contractor.average_rating / 5) * 25 if contractor.average_rating else 0
-    
-    # 3. Success Rate (15% weight)
     success_rate = 0
     if contractor.total_bids > 0:
         success_rate = (contractor.successful_bids / contractor.total_bids) * 100
     success_score = (success_rate / 100) * 15
-    
-    # 4. Location Score (20% weight)
-    # Use the pre-calculated location score (0-1.0) and scale to 20%
     location_score = (bid.location_score or 0) * 20
-    
-    # Calculate total score
     total_score = nca_score + rating_score + success_score + location_score
-    
-    # Ensure score is within bounds
     return max(0, min(100, total_score))
 
 def select_winning_bid(project_id):
@@ -233,21 +305,15 @@ def select_winning_bid(project_id):
     return scored_bids[0] if scored_bids else (None, None)
     
 def find_contractors_for_project(project_id, min_score=0.3, max_results=20):
-    """
-    Find contractors for a project with location-based fallback
-    Returns: list of (contractor, score, match_type) tuples
-    """
     project = Job.query.get(project_id)
     if not project:
         return []
     
-    # Get all active professionals
     professionals = User.query.filter_by(
         role=UserRole.PROFESSIONAL,
-        is_active=True  # Assuming we have this field
+        is_active=True 
     ).all()
     
-    # Score each professional
     scored_contractors = []
     for pro in professionals:
         score, match_type = location_match_score(project.location, pro.location)
@@ -258,10 +324,8 @@ def find_contractors_for_project(project_id, min_score=0.3, max_results=20):
                 'match_type': match_type
             })
     
-    # Sort by score (descending)
     scored_contractors.sort(key=lambda x: x['score'], reverse=True)
-    
-    # Apply max results
+  
     return scored_contractors[:max_results]
 
 # auth helper
@@ -329,19 +393,16 @@ def select_winner(project_id):
     try:
         project = Job.query.get_or_404(project_id)
         current_user = get_current_user()
-        
-        # Verify permissions
+  
         if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
-        
-        # Only allow if project is still open
+   
         if project.status != JobStatus.OPEN:
             return jsonify({
                 'success': False,
                 'error': 'Project is not open for bidding'
             }), 400
-        
-        # Select winning bid
+    
         winning_bid, winning_score = select_winning_bid(project_id)
         
         if not winning_bid:
@@ -350,17 +411,14 @@ def select_winner(project_id):
                 'error': 'No suitable bids found'
             }), 404
         
-        # Update project and bid status
         project.assigned_contractor_id = winning_bid.professional_id
         project.status = JobStatus.AWARDED
         winning_bid.status = BidStatus.ACCEPTED
-        
-        # Update contractor's successful bids count
+    
         contractor = winning_bid.contractor
         contractor.total_bids += 1
         contractor.successful_bids += 1
-        
-        # Recalculate success rate
+       
         if contractor.total_bids > 0:
             contractor.average_rating = (
                 (contractor.average_rating * (contractor.total_bids - 1) + winning_score) 
@@ -368,8 +426,7 @@ def select_winner(project_id):
             )
         
         db.session.commit()
-        
-        # Notify winner and other bidders
+     
         notify_bid_accepted(winning_bid)
         
         return jsonify({
@@ -449,16 +506,13 @@ def submit_bid(project_id):
             
             project = Job.query.get_or_404(project_id)
             contractor = get_current_user()
-            
-            # Verify contractor role
+         
             if contractor.role != UserRole.PROFESSIONAL:
                 return jsonify({'error': 'Only professionals can submit bids'}), 403
-            
-            # Check if project is open
+         
             if project.status != JobStatus.OPEN:
                 return jsonify({'error': 'Project is not accepting bids'}), 400
-            
-            # Check for existing bid
+    
             existing_bid = Bid.query.filter_by(
                 project_id=project_id,
                 professional_id=contractor.id
@@ -466,8 +520,7 @@ def submit_bid(project_id):
             
             if existing_bid:
                 return jsonify({'error': 'You have already submitted a bid for this project'}), 400
-            
-            # Calculate location match score
+          
             location_score, match_type = location_match_score(project.location, contractor.location)
             
             # Create bid
@@ -484,8 +537,7 @@ def submit_bid(project_id):
             
             db.session.add(bid)
             db.session.commit()
-            
-            # Notify project owner
+          
             send_notification(
                 project.customer_id,
                 "New Bid Received",
@@ -554,14 +606,12 @@ def get_recommended_contractors(project_id):
         project = Job.query.get_or_404(project_id)
         current_user = get_current_user()
         
-        # Verify access
         if current_user.id != project.customer_id and current_user.role != UserRole.ADMIN:
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Get recommended contractors
         contractors = find_contractors_for_project(project_id)
-        
-        # Format response
+
         result = [{
             'id': item['contractor'].id,
             'name': item['contractor'].name,
@@ -600,7 +650,6 @@ def test():
             'timestamp': datetime.now().isoformat()
         })
 
-# Create project
 @app.route('/api/projects', methods=['POST'])
 @jwt_required()
 @role_required([UserRole.CUSTOMER])
@@ -611,8 +660,6 @@ def create_project():
         validate_required_fields(data, required_fields)
         
         current_user = get_current_user()
-        
-        # Create project
         project = Job(
             title=data['title'],
             description=data['description'],
@@ -644,142 +691,112 @@ def create_project():
         return jsonify({'success': False, 'message': 'Failed to create project'}), 500
     
 def has_document_access(user_id, document):
-    """
-    Check if a user has access to a document
-    Returns: (has_access: bool, message: str)
-    """
-    # Admin has access to everything
-    user = User.query.get(user_id)
-    if user.role == UserRole.ADMIN:
-        return True, "Admin access granted"
-    
-    # Check if document is associated with a project
-    if document.project_id:
-        project = Job.query.get(document.project_id)
-        if not project:
-            return False, "Project not found"
+    """Check if a user has access to a document"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return False, "User not found"
             
-        # Project owner has access
-        if project.customer_id == user_id:
-            return True, "Project owner access"
+        # Admin can access any document
+        if user.role == UserRole.ADMIN:
+            return True, "Admin access"
             
-        # Assigned contractor has access
-        if project.assigned_contractor_id == user_id:
-            return True, "Assigned contractor access"
-    
-    # Check if document is associated with a bid
-    if document.bid_id:
-        bid = Bid.query.get(document.bid_id)
-        if not bid:
-            return False, "Bid not found"
+        # Document uploader can access their own documents
+        if document.uploaded_by == user_id:
+            return True, "Document owner"
             
-        # Bid owner has access to their own bid documents
-        if bid.professional_id == user_id:
-            return True, "Bid owner access"
-    
-    return False, "Access denied"
+        # Project participants can access project documents
+        if document.project_id:
+            project = Job.query.get(document.project_id)
+            if not project:
+                return False, "Project not found"
+                
+            # Project owner can access all project documents
+            if project.customer_id == user_id:
+                return True, "Project owner"
+                
+            # Assigned contractor can access project documents
+            if project.assigned_contractor_id == user_id:
+                return True, "Assigned contractor"
+        
+        # Bid documents can be accessed by the bid owner
+        if document.bid_id:
+            bid = Bid.query.get(document.bid_id)
+            if bid and bid.professional_id == user_id:
+                return True, "Bid owner"
+                
+        return False, "Access denied"
+        
+    except Exception as e:
+        print(f"Error checking document access: {e}")
+        return False, "Error checking access"
 
 @app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
 @jwt_required()
-def list_project_documents(project_id):
-    """
-    List all documents for a project
-    """
+@AccessControl.project_required
+def list_project_documents(project):
+    """List all documents for a project"""
     try:
-        project = Job.query.get_or_404(project_id)
+        documents = Document.query.filter_by(project_id=project.id).all()
         current_user = get_current_user()
         
-        # Check project access
-        if current_user.role != UserRole.ADMIN and \
-           current_user.id != project.customer_id and \
-           (not project.assigned_contractor_id or current_user.id != project.assigned_contractor_id):
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Get all documents for this project
-        documents = Document.query.filter_by(project_id=project_id).all()
-        
-        # Format response
         result = [{
             'id': doc.id,
             'filename': doc.filename,
             'uploaded_at': doc.uploaded_at.isoformat(),
             'uploaded_by': doc.uploaded_by,
-            'file_type': doc.filename.rsplit('.', 1)[-1].lower() if '.' in doc.filename else '',
+            'file_type': FileHandler.get_mime_type(doc.filename),
             'size': os.path.getsize(doc.filepath) if os.path.exists(doc.filepath) else 0,
             'is_owner': doc.uploaded_by == current_user.id
         } for doc in documents]
         
         return jsonify({
             'success': True,
-            'data': result
+            'documents': result
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
     
 @app.route('/api/documents/<int:document_id>', methods=['GET'])
 @jwt_required()
 def download_document(document_id):
-    """
-    Download a document
-    """
+    """Download a document"""
     try:
         document = Document.query.get_or_404(document_id)
         current_user = get_current_user()
         
-        # Check access
+        # Check document access
         has_access, message = has_document_access(current_user.id, document)
         if not has_access:
             return jsonify({'error': message}), 403
-        
-        # Check if file exists
+    
         if not os.path.exists(document.filepath):
             return jsonify({'error': 'File not found'}), 404
-        
-        # Determine MIME type
-        mime_type = 'application/octet-stream'
-        if '.' in document.filename:
-            ext = document.filename.rsplit('.', 1)[1].lower()
-            mime_type = {
-                'pdf': 'application/pdf',
-                'jpg': 'image/jpeg',
-                'jpeg': 'image/jpeg',
-                'png': 'image/png',
-                'doc': 'application/msword',
-                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'txt': 'text/plain'
-            }.get(ext, 'application/octet-stream')
-        
-        # Send file
+   
         return send_file(
             document.filepath,
             as_attachment=True,
             download_name=document.filename,
-            mimetype=mime_type
+            mimetype=FileHandler.get_mime_type(document.filename)
         )
-        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-    
+
 @app.route('/api/documents/<int:document_id>', methods=['DELETE'])
 @jwt_required()
 def delete_document(document_id):
-    """
-    Delete a document
-    """
+   
     try:
         document = Document.query.get_or_404(document_id)
         current_user = get_current_user()
         
-        # Only document uploader or admin can delete
         if document.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
             return jsonify({'error': 'Access denied'}), 403
         
-        # Delete file if it exists
         if os.path.exists(document.filepath):
             os.remove(document.filepath)
         
-        # Delete database record
         db.session.delete(document)
         db.session.commit()
         
@@ -793,21 +810,15 @@ def delete_document(document_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 def find_matching_contractors(project_id):
-    """
-    Find matching contractors for a project based on location and other criteria
-    """
     project = Job.query.get(project_id)
     if not project:
         return []
-    
-    # Get all professionals
     professionals = User.query.filter_by(role=UserRole.PROFESSIONAL).all()
-    
-    # Score and sort professionals by location match
+
     professionals_with_scores = []
     for pro in professionals:
         score = location_match_score(project.location, pro.location)
-        if score > 0:  # Only include contractors with some location match
+        if score > 0:  
             professionals_with_scores.append({
                 'professional': pro,
                 'location_score': score,
@@ -815,7 +826,6 @@ def find_matching_contractors(project_id):
                 'nca_level': 0    # TODO: Get NCA level
             })
     
-    # Sort by location score (descending), then NCA level, then rating
     professionals_with_scores.sort(
         key=lambda x: (x['location_score'], x['nca_level'], x['avg_rating']),
         reverse=True
@@ -825,9 +835,7 @@ def find_matching_contractors(project_id):
 
 # mpesa payment
 def get_mpesa_auth_token():
-    """
-    Get M-Pesa API auth token
-    """
+   
     global MPESA_AUTH_TOKEN, MPESA_AUTH_TOKEN_EXPIRY
     
     if MPESA_AUTH_TOKEN and datetime.utcnow() < MPESA_AUTH_TOKEN_EXPIRY:
@@ -855,9 +863,7 @@ def get_mpesa_auth_token():
         raise Exception("Failed to get M-Pesa auth token")
 
 def initiate_stk_push(phone, amount, account_reference, description):
-    """
-    Initiate STK push to customer
-    """
+
     token = get_mpesa_auth_token()
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     password = base64.b64encode(
@@ -891,12 +897,10 @@ def initiate_stk_push(phone, amount, account_reference, description):
     
     return response.json()
 
-# Mpesa callback
 @app.route('api/mpesa/callback', methods=['POST'])
 def mpesa_callback():
     try:
         data = request.get_json()
-        #verify callback is from mpesa
         # TODO:add proper validation
         result = data['Body']['stkCallback']['ResultCode']
         checkout_request_id = data['Body']['stkCallback']['CheckoutRequestID']
@@ -947,8 +951,6 @@ def mpesa_callback():
             }
         }), 500
         
-    
-
 @app.errorhandler(HTTPException)
 def handle_http_error(e):
     return jsonify({
@@ -981,60 +983,81 @@ def health_check():
         'message': 'healthy api',
     })
 
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# File handling constants and functions moved to FileHandler class
 
 @app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
 @jwt_required()
-def upload_document(project_id):
+@AccessControl.project_required
+def upload_document(project):
+    """Upload a document for a project"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file part'}), 400
-        
+            
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
+            
+        if not FileHandler.allowed_file(file.filename):
+            return jsonify({'error': 'File type not allowed'}), 400
+            
+        filename, filepath = FileHandler.save_file(file, project.id)
+        current_user = get_current_user()
         
-        if file and allowed_file(file.filename):
-            # Create upload directory if it doesn't exist
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-            
-            # Generate a secure filename and save the file
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(UPLOAD_FOLDER, f"project_{project_id}_{filename}")
-            file.save(filepath)
-            
-            # Save document info to database
-            document = Document(
-                project_id=project_id,
-                filename=filename,
-                filepath=filepath,
-                uploaded_by=get_jwt_identity()
-            )
-            db.session.add(document)
-            db.session.commit()
-            
-            # Notify relevant parties
-            notify_document_upload(document)
-            
-            return jsonify({
-                'success': True,
-                'message': 'File uploaded successfully',
-                'document_id': document.id
-            }), 201
-            
-        return jsonify({'error': 'File type not allowed'}), 400
+        document = Document(
+            project_id=project.id,
+            filename=filename,
+            filepath=filepath,
+            uploaded_by=current_user.id
+        )
+        db.session.add(document)
+        db.session.commit()
+        
+        # Notify relevant users
+        notify_document_upload(document)
+        
+        return jsonify({
+            'success': True,
+            'message': 'File uploaded successfully',
+            'document_id': document.id
+        }), 201
         
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-    
-    
-    
+
+def notify_document_upload(document):
+    """Notify relevant users about a new document upload"""
+    try:
+        project = document.project
+        uploader = User.query.get(document.uploaded_by)
+        current_user = get_current_user()
+        
+        # Determine who to notify
+        recipient_ids = set()
+        
+        # Notify project owner if not the uploader
+        if project.customer_id != document.uploaded_by:
+            recipient_ids.add(project.customer_id)
+            
+        # Notify assigned contractor if exists and not the uploader
+        if project.assigned_contractor_id and project.assigned_contractor_id != document.uploaded_by:
+            recipient_ids.add(project.assigned_contractor_id)
+        
+        # Send notifications
+        for recipient_id in recipient_ids:
+            if recipient_id != current_user.id:  # Don't notify self
+                NotificationService.send(
+                    recipient_id,
+                    "New Document Uploaded",
+                    f"User {uploader.first_name} {uploader.last_name} uploaded a new document to project {project.title}",
+                    "document_upload"
+                )
+                
+    except Exception as e:
+        print(f"Error in notify_document_upload: {e}")
+        return False
+
 @app.route('/api/projects/<int:project_id>/bid-scores', methods=['GET'])
 @jwt_required()
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
@@ -1108,57 +1131,109 @@ def send_notification(user_id, title, message, notification_type):
     if user.phone:
         send_sms(user.phone, f"{title}: {message}")
 
-def notify_document_upload(document):
-    project = document.project
-    if document.uploaded_by == project.customer_id:
-        recipient_id = project.assigned_contractor_id
-    else:
-        recipient_id = project.customer_id
-    
-    send_notification(
-        recipient_id,
-        "New Document Uploaded",
-        f"A new document was uploaded to project {project.title}",
-        "document_upload"
-    )
+def notify_status_change(project, old_status, new_status):
+    """Notify relevant parties about project status changes"""
+    try:
+        if new_status == JobStatus.AWARDED and project.assigned_contractor_id:
+            NotificationService.send(
+                project.assigned_contractor_id,
+                "Project Awarded",
+                f"You have been awarded project {project.title}",
+                "project_awarded"
+            )
+        elif new_status == JobStatus.PAID and project.assigned_contractor_id:
+            NotificationService.send(
+                project.assigned_contractor_id,
+                "Project Paid",
+                f"Project {project.title} has been paid",
+                "project_paid"
+            )
+        elif new_status == JobStatus.IN_PROGRESS and project.assigned_contractor_id:
+            NotificationService.send(
+                project.assigned_contractor_id,
+                "Project Started",
+                f"Project {project.title} has started",
+                "project_started"
+            )
+        elif new_status == JobStatus.COMPLETED:
+            NotificationService.send(
+                project.customer_id,
+                "Project Completed",
+                f"Project {project.title} has been completed",
+                "project_completed"
+            )
+        elif new_status == JobStatus.DISPUTED:
+            NotificationService.send(
+                project.customer_id,
+                "Project Disputed",
+                f"Project {project.title} has been disputed",
+                "project_disputed"
+            )
+        elif new_status == JobStatus.CLOSED:
+            NotificationService.send(
+                project.customer_id,
+                "Project Closed",
+                f"Project {project.title} has been closed",
+                "project_closed"
+            )
+    except Exception as e:
+        print(f"Error in notify_status_change: {e}")
 
-# def update_project_status(project_id, new_status, notes=None):
-    project = Job.query.get(project_id)
-    if not project:
+def update_project_status(project_id, new_status, notes=None):
+    """Update project status and notify relevant parties"""
+    try:
+        project = Job.query.get(project_id)
+        if not project:
+            return False
+            
+        old_status = project.status
+        
+        # Skip if status is not changing
+        if old_status == new_status:
+            return True
+            
+        # Validate status transition
+        valid_transitions = {
+            JobStatus.DRAFT: [JobStatus.OPEN, JobStatus.CANCELLED],
+            JobStatus.OPEN: [JobStatus.AWARDED, JobStatus.CANCELLED],
+            JobStatus.AWARDED: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
+            JobStatus.IN_PROGRESS: [JobStatus.COMPLETED, JobStatus.DISPUTED],
+            JobStatus.COMPLETED: [JobStatus.PAID, JobStatus.DISPUTED],
+            JobStatus.DISPUTED: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
+            JobStatus.PAID: [JobStatus.CLOSED],
+            JobStatus.CANCELLED: [JobStatus.OPEN],
+        }
+        
+        if new_status not in valid_transitions.get(old_status, []):
+            return False
+            
+        # Update status
+        project.status = new_status
+        
+        # Update notes if provided
+        if notes:
+            project.notes = notes
+            
+        # Log status change
+        status_change = ProjectStatusHistory(
+            project_id=project_id,
+            from_status=old_status,
+            to_status=new_status,
+            changed_by=get_jwt_identity(),
+            notes=notes
+        )
+        db.session.add(status_change)
+        db.session.commit()
+        
+        # Notify relevant parties about status change
+        notify_status_change(project, old_status, new_status)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error updating project status: {e}")
+        db.session.rollback()
         return False
-    
-    # Status transition validation
-    valid_transitions = {
-        JobStatus.OPEN: [JobStatus.AWARDED, JobStatus.CANCELLED],
-        JobStatus.AWARDED: [JobStatus.PAID, JobStatus.CANCELLED],
-        JobStatus.PAID: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
-        JobStatus.IN_PROGRESS: [JobStatus.COMPLETED, JobStatus.DISPUTED],
-        JobStatus.COMPLETED: [JobStatus.CLOSED],
-        JobStatus.DISPUTED: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED]
-    }
-    
-    if new_status not in valid_transitions.get(project.status, []):
-        return False
-    
-    # Update status
-    old_status = project.status
-    project.status = new_status
-    
-    # Log status change
-    status_change = ProjectStatusHistory(
-        project_id=project_id,
-        from_status=old_status,
-        to_status=new_status,
-        changed_by=get_jwt_identity(),
-        notes=notes
-    )
-    db.session.add(status_change)
-    db.session.commit()
-    
-    # Notify relevant parties
-    notify_status_change(project, old_status, new_status)
-    
-    return True
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db.session.remove()
