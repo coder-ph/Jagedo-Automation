@@ -75,9 +75,7 @@ const HeroSection = () => {
                   Find {category.name}
                 </button>
               </div>
-              <div className="absolute top-4 right-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-800 shadow-sm">
-                Popular
-              </div>
+              
             </div>
           ))}
         </div>
