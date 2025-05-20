@@ -29,6 +29,15 @@ app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
 
+# Mpesa configs
+MPESA_CONSUMER_KEY = os.getenv('MPESA_CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = os.getenv('MPESA_CONSUMER_SECRET')
+MPESA_PASSKEY = os.getenv('MPESA_PASSKEY')
+MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE')
+MPESA_CALLBACK_URL = os.getenv('MPESA_CALLBACK_URL')
+MPESA_AUTH_TOKEN = None
+MPESA_AUTH_TOKEN_EXPIRY = None
+
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -207,19 +216,6 @@ def role_required(roles):
         return wrapper
     return decorator
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Test Routes
 @app.route('/api/test', methods=['POST', 'GET'])
 def test():
@@ -237,8 +233,6 @@ def test():
             'message': 'GET request successful',
             'timestamp': datetime.now().isoformat()
         })
-
-
 
 
 @app.errorhandler(HTTPException)
