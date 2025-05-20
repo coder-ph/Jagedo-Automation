@@ -268,6 +268,148 @@ def test():
             'timestamp': datetime.now().isoformat()
         })
 
+# Create project
+@app.route('/api/projects', methods=['POST'])
+@jwt_required()
+@role_required([UserRole.CUSTOMER])
+def create_project():
+    try:
+        data = validate_json()
+        required_fields = ['title', 'description', 'budget', 'location', 'category_id']
+        validate_required_fields(data, required_fields)
+        
+        current_user = get_current_user()
+        
+        # Create project
+        project = Job(
+            title=data['title'],
+            description=data['description'],
+            budget=float(data['budget']),
+            location=data['location'],
+            category_id=data['category_id'],
+            customer_id=current_user.id,
+            status=JobStatus.OPEN
+        )
+        
+        db.session.add(project)
+        db.session.commit()
+        
+        # TODO: Add file attachment handling
+        # TODO: Trigger contractor matching
+        
+        return jsonify({
+            'success': True,
+            'message': 'Project created successfully',
+            'data': {
+                'project_id': project.id
+            }
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to create project'}), 500
+
+def find_matching_contractors(project_id):
+    """
+    Find matching contractors for a project based on location and other criteria
+    """
+    project = Job.query.get(project_id)
+    if not project:
+        return []
+    
+    # Get all professionals
+    professionals = User.query.filter_by(role=UserRole.PROFESSIONAL).all()
+    
+    # Score and sort professionals by location match
+    professionals_with_scores = []
+    for pro in professionals:
+        score = location_match_score(project.location, pro.location)
+        if score > 0:  # Only include contractors with some location match
+            professionals_with_scores.append({
+                'professional': pro,
+                'location_score': score,
+                'avg_rating': 0,  # TODO: Calculate actual average rating
+                'nca_level': 0    # TODO: Get NCA level
+            })
+    
+    # Sort by location score (descending), then NCA level, then rating
+    professionals_with_scores.sort(
+        key=lambda x: (x['location_score'], x['nca_level'], x['avg_rating']),
+        reverse=True
+    )
+    
+    return [p['professional'] for p in professionals_with_scores[:20]]  # Return top 10 matches
+
+# mpesa payment
+def get_mpesa_auth_token():
+    """
+    Get M-Pesa API auth token
+    """
+    global MPESA_AUTH_TOKEN, MPESA_AUTH_TOKEN_EXPIRY
+    
+    if MPESA_AUTH_TOKEN and datetime.utcnow() < MPESA_AUTH_TOKEN_EXPIRY:
+        return MPESA_AUTH_TOKEN
+    
+    auth = (f"{MPESA_CONSUMER_KEY}:{MPESA_CONSUMER_SECRET}").encode('utf-8')
+    auth = base64.b64encode(auth).decode('utf-8')
+    
+    headers = {
+        'Authorization': f'Basic {auth}',
+        'Content-Type': 'application/json'
+    }
+    
+    response = requests.get(
+        'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
+        headers=headers
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        MPESA_AUTH_TOKEN = data['access_token']
+        MPESA_AUTH_TOKEN_EXPIRY = datetime.utcnow() + timedelta(seconds=data['expires_in'] - 60)
+        return MPESA_AUTH_TOKEN
+    else:
+        raise Exception("Failed to get M-Pesa auth token")
+
+def initiate_stk_push(phone, amount, account_reference, description):
+    """
+    Initiate STK push to customer
+    """
+    token = get_mpesa_auth_token()
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    password = base64.b64encode(
+        f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}".encode()
+    ).decode()
+    
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'BusinessShortCode': MPESA_SHORTCODE,
+        'Password': password,
+        'Timestamp': timestamp,
+        'TransactionType': 'CustomerPayBillOnline',
+        'Amount': amount,
+        'PartyA': phone,
+        'PartyB': MPESA_SHORTCODE,
+        'PhoneNumber': phone,
+        'CallBackURL': MPESA_CALLBACK_URL,
+        'AccountReference': account_reference,
+        'TransactionDesc': description
+    }
+    
+    response = requests.post(
+        'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+        headers=headers,
+        json=payload
+    )
+    
+    return response.json()
+
 
 @app.errorhandler(HTTPException)
 def handle_http_error(e):
