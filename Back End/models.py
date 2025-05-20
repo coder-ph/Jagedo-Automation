@@ -31,10 +31,16 @@ class User(db.Model):
     profile_description = db.Column(db.Text)
     location = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    nca_level = db.Column(db.Integer, default=1)
+    average_rating = db.Column(db.Float, default=0.0)
+    total_ratings = db.Column(db.Integer, default=0)
+    successful_bids = db.Column(db.Integer, default=0)
+    total_bids = db.Column(db.Integer, default=0)
 
     jobs = db.relationship('Job', backref='customer')
     bids = db.relationship('Bid', backref='professional')
     skills = db.relationship('ProfessionalSkill', backref='professional')
+    notifications = db.relationship('Notification', backref='user', lazy=True)
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -133,6 +139,8 @@ class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     file_url = db.Column(db.String(255), nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
 
     job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'))
     bid_id = db.Column(db.Integer, db.ForeignKey('bids.id'))
@@ -146,3 +154,21 @@ class Notification(db.Model):
     read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    notification_type = db.Column(db.String(50))
+    
+
+class ProjectStatusHistory(db.Model):
+    __tablename__ = 'project_status_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    from_status = db.Column(db.Enum(JobStatus), nullable=False)
+    to_status = db.Column(db.Enum(JobStatus), nullable=False)
+    changed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    project = db.relationship('Job', backref='status_history')
+    changed_by_user = db.relationship('User')

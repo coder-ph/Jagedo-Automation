@@ -594,7 +594,43 @@ def notify_document_upload(document):
         "document_upload"
     )
 
-# 
+# def update_project_status(project_id, new_status, notes=None):
+    project = Job.query.get(project_id)
+    if not project:
+        return False
+    
+    # Status transition validation
+    valid_transitions = {
+        JobStatus.OPEN: [JobStatus.AWARDED, JobStatus.CANCELLED],
+        JobStatus.AWARDED: [JobStatus.PAID, JobStatus.CANCELLED],
+        JobStatus.PAID: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
+        JobStatus.IN_PROGRESS: [JobStatus.COMPLETED, JobStatus.DISPUTED],
+        JobStatus.COMPLETED: [JobStatus.CLOSED],
+        JobStatus.DISPUTED: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED]
+    }
+    
+    if new_status not in valid_transitions.get(project.status, []):
+        return False
+    
+    # Update status
+    old_status = project.status
+    project.status = new_status
+    
+    # Log status change
+    status_change = ProjectStatusHistory(
+        project_id=project_id,
+        from_status=old_status,
+        to_status=new_status,
+        changed_by=get_jwt_identity(),
+        notes=notes
+    )
+    db.session.add(status_change)
+    db.session.commit()
+    
+    # Notify relevant parties
+    notify_status_change(project, old_status, new_status)
+    
+    return True
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db.session.remove()
