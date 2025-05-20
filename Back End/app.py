@@ -57,6 +57,37 @@ TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
+def send_email(to_email, subject, message):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_FROM
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(message, 'plain'))
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
+def send_sms(to_phone, message):
+    try:
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        message = client.messages.create(
+            body=message,
+            from_=TWILIO_PHONE_NUMBER,
+            to=to_phone
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending SMS: {e}")
+        return False
+
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -536,45 +567,82 @@ def health_check():
         'message': 'healthy api',
     })
 
-UPLOAD_FOLDER='uploads'
-allowed_extensions={'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', }
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
+
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
 @jwt_required()
 def upload_document(project_id):
     try:
-        if 'file' not in request.file:
+        if 'file' not in request.files:
             return jsonify({'error': 'No file part'}), 400
         
-        file = request.file['file']
+        file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
         
         if file and allowed_file(file.filename):
+            # Create upload directory if it doesn't exist
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            
+            # Generate a secure filename and save the file
             filename = secure_filename(file.filename)
-            file.save(os.path.join(UPLOAD_FOLDER, filename))
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            filepath = os.path.join(UPLOAD_FOLDER, f"project_{project_id}_{filename}")
             file.save(filepath)
             
+            # Save document info to database
             document = Document(
-            project_id=project_id,
-            filename=filename,
-            filepath=filepath,
-            uploaded_by=get_jwt_identity()
-        )
-        db.session.add(document)
-        db.session.commit()
-        
-        notify_document_upload(document)
-        
-        
-        return jsonify({'message': 'File successfully uploaded'}), 200
-        
+                project_id=project_id,
+                filename=filename,
+                filepath=filepath,
+                uploaded_by=get_jwt_identity()
+            )
+            db.session.add(document)
+            db.session.commit()
+            
+            # Notify relevant parties
+            notify_document_upload(document)
+            
+            return jsonify({
+                'success': True,
+                'message': 'File uploaded successfully',
+                'document_id': document.id
+            }), 201
+            
+        return jsonify({'error': 'File type not allowed'}), 400
         
     except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
+    
+
+
+def notify_bid_accepted(bid):
+    """Notify contractor that their bid was accepted"""
+    send_notification(
+        bid.contractor_id,
+        "Bid Accepted",
+        f"Your bid for project {bid.project.title} has been accepted!",
+        "bid_accepted"
+    )
+    
+    # Notify other bidders
+    other_bids = Bid.query.filter(
+        Bid.project_id == bid.project_id,
+        Bid.id != bid.id
+    ).all()
+    
+    for other_bid in other_bids:
+        send_notification(
+            other_bid.contractor_id,
+            "Bid Status Update",
+            f"Another bid has been accepted for project {bid.project.title}",
+            "bid_rejected"
+        )
     
     
 # Notification system
