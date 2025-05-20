@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const regionsInKenya = [
   'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret',
@@ -38,14 +40,27 @@ const CustomerServiceRequest = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Show success toast
+    toast.success('Service request submitted successfully!', {
+      position: "top-center",
+      autoClose: 2000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: "colored",
+      onClose: () => navigate('/dashboard') // Navigate after toast closes
+    });
+    
     console.log('Service Request Submitted:', formData);
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 500);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+      <ToastContainer />
+      
       <div className="w-full max-w-5xl">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-800">Create Service Request</h2>
