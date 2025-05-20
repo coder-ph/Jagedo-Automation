@@ -884,7 +884,47 @@ def upload_document(project_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
-
+@app.route('/api/projects/<int:project_id>/bid-scores', methods=['GET'])
+@jwt_required()
+@role_required([UserRole.ADMIN, UserRole.CUSTOMER])
+def get_bid_scores(project_id):
+    """Get detailed scoring information for all bids on a project"""
+    project = Job.query.get_or_404(project_id)
+    current_user = get_current_user()
+    
+    # Verify permissions
+    if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    bids = Bid.query.filter_by(project_id=project_id).all()
+    
+    result = []
+    for bid in bids:
+        score = calculate_bid_score(bid)
+        result.append({
+            'bid_id': bid.id,
+            'contractor_id': bid.professional_id,
+            'contractor_name': f"{bid.contractor.first_name} {bid.contractor.last_name}",
+            'company': bid.contractor.company_name,
+            'amount': float(bid.amount),
+            'nca_level': bid.contractor.nca_level,
+            'rating': bid.contractor.average_rating,
+            'success_rate': (bid.contractor.successful_bids / bid.contractor.total_bids * 100) if bid.contractor.total_bids > 0 else 0,
+            'location_score': bid.location_score,
+            'location_match_type': bid.location_match_type,
+            'total_score': score,
+            'status': bid.status.value
+        })
+    
+    # Sort by total score (descending)
+    result.sort(key=lambda x: x['total_score'], reverse=True)
+    
+    return jsonify({
+        'success': True,
+        'project_id': project_id,
+        'project_title': project.title,
+        'bids': result
+    })
 
 def notify_bid_accepted(bid):
     """Notify contractor that their bid was accepted"""
