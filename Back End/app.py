@@ -72,6 +72,40 @@ def validate_required_fields(data, required_fields):
     missing = [field for field in required_fields if field not in data]
     if missing:
         raise ValueError(f'Missing required fields: {", ".join(missing)}')
+    
+    # location filtering
+    def get_location_hierarchy(location):
+        """
+        Convert a location string into hierarchical components (county, subcounty, ward, etc.)
+        This is a simplified version - you'll need to adapt this based on your actual location structure
+        """
+        # This is a placeholder - implement actual location parsing logic
+        parts = location.lower().split(',')
+        parts = [p.strip() for p in parts]
+        return {
+            'full': location,
+            'county': parts[-1] if len(parts) > 0 else None,
+            'subcounty': parts[-2] if len(parts) > 1 else None,
+            'ward': parts[-3] if len(parts) > 2 else None
+        }
+    
+    def location_match_score(client_location, contractor_location):
+        """
+        Calculate a match score between client and contractor locations
+        Higher score means better match
+        """
+        client = get_location_hierarchy(client_location)
+        contractor = get_location_hierarchy(contractor_location)
+        
+        if client['full'] == contractor['full']:
+            return 3  
+        elif client['ward'] and client['ward'] == contractor.get('ward'):
+            return 2  
+        elif client['subcounty'] and client['subcounty'] == contractor.get('subcounty'):
+            return 1  
+        elif client['county'] and client['county'] == contractor.get('county'):
+            return 0.5  
+        return 0  
 
 # auth helper
 
