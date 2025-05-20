@@ -642,6 +642,42 @@ def create_project():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Failed to create project'}), 500
+    
+def has_document_access(user_id, document):
+    """
+    Check if a user has access to a document
+    Returns: (has_access: bool, message: str)
+    """
+    # Admin has access to everything
+    user = User.query.get(user_id)
+    if user.role == UserRole.ADMIN:
+        return True, "Admin access granted"
+    
+    # Check if document is associated with a project
+    if document.project_id:
+        project = Job.query.get(document.project_id)
+        if not project:
+            return False, "Project not found"
+            
+        # Project owner has access
+        if project.customer_id == user_id:
+            return True, "Project owner access"
+            
+        # Assigned contractor has access
+        if project.assigned_contractor_id == user_id:
+            return True, "Assigned contractor access"
+    
+    # Check if document is associated with a bid
+    if document.bid_id:
+        bid = Bid.query.get(document.bid_id)
+        if not bid:
+            return False, "Bid not found"
+            
+        # Bid owner has access to their own bid documents
+        if bid.professional_id == user_id:
+            return True, "Bid owner access"
+    
+    return False, "Access denied"
 
 def find_matching_contractors(project_id):
     """
@@ -884,9 +920,12 @@ def upload_document(project_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
+    
+    
 @app.route('/api/projects/<int:project_id>/bid-scores', methods=['GET'])
 @jwt_required()
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
+
 def get_bid_scores(project_id):
     """Get detailed scoring information for all bids on a project"""
     project = Job.query.get_or_404(project_id)
