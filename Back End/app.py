@@ -525,6 +525,76 @@ allowed_extensions={'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', }
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
+@app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
+@jwt_required()
+def upload_document(project_id):
+    try:
+        if 'file' not in request.file:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.file['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(UPLOAD_FOLDER, filename))
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            file.save(filepath)
+            
+            document = Document(
+            project_id=project_id,
+            filename=filename,
+            filepath=filepath,
+            uploaded_by=get_jwt_identity()
+        )
+        db.session.add(document)
+        db.session.commit()
+        
+        notify_document_upload(document)
+        
+        
+        return jsonify({'message': 'File successfully uploaded'}), 200
+        
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+    
+# Notification system
+def send_notification(user_id, title, message, notification_type):
+    notification = Notification(
+        user_id=user_id,
+        title=title,
+        message=message,
+        type=notification_type,
+        read=False
+    )
+    db.session.add(notification)
+    db.session.commit()
+    
+    # Optionally send email/SMS
+    user = User.query.get(user_id)
+    if user.email:
+        send_email(user.email, title, message)
+    if user.phone:
+        send_sms(user.phone, f"{title}: {message}")
+
+def notify_document_upload(document):
+    project = document.project
+    if document.uploaded_by == project.customer_id:
+        recipient_id = project.assigned_contractor_id
+    else:
+        recipient_id = project.customer_id
+    
+    send_notification(
+        recipient_id,
+        "New Document Uploaded",
+        f"A new document was uploaded to project {project.title}",
+        "document_upload"
+    )
+
+# 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db.session.remove()
