@@ -39,139 +39,165 @@ const CustomerServiceRequest = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log('Service Request Submitted:', formData);
-
-    // Simulate successful submission then navigate to dashboard
-    // You can replace this with your API call logic
     setTimeout(() => {
       navigate('/dashboard');
     }, 500);
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-white shadow-lg rounded-lg mt-10 flex flex-col md:flex-row gap-8">
-      {/* Left section: Form */}
-      <div className="flex-1">
-        <h2 className="text-2xl font-bold mb-6 text-indigo-700">Create a Service Request</h2>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-5xl">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-800">Create Service Request</h2>
+          <p className="mt-2 text-base text-gray-600">Fill in the details to find the right service provider</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-              placeholder="Full Name"
-              required
-              className="border border-gray-300 rounded-lg p-3 w-full"
-            />
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="Phone Number"
-              required
-              className="border border-gray-300 rounded-lg p-3 w-full"
-            />
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Email Address"
-              required
-              className="border border-gray-300 rounded-lg p-3 w-full"
-            />
-            <select
-              name="region"
-              value={formData.region}
-              onChange={handleChange}
-              required
-              className="border border-gray-300 rounded-lg p-3 w-full bg-white"
-            >
-              <option value="">Select Your Region</option>
-              {regionsInKenya.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          </div>
+        <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8">
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column */}
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    placeholder="John Doe"
+                    required
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  />
+                </div>
 
-          <textarea
-            name="locationDetails"
-            value={formData.locationDetails}
-            onChange={handleChange}
-            placeholder="Location Details (e.g., estate, house number)"
-            rows={2}
-            className="border border-gray-300 rounded-lg p-3 w-full"
-            required
-          />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="0712 345 678"
+                    required
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  />
+                </div>
 
-          <textarea
-            name="serviceDescription"
-            value={formData.serviceDescription}
-            onChange={handleChange}
-            placeholder="Describe the service you need"
-            rows={4}
-            className="border border-gray-300 rounded-lg p-3 w-full"
-            required
-          />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="your@email.com"
+                    required
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  />
+                </div>
 
-          <textarea
-            name="materialsNeeded"
-            value={formData.materialsNeeded}
-            onChange={handleChange}
-            placeholder="List any materials or tools needed (optional)"
-            rows={3}
-            className="border border-gray-300 rounded-lg p-3 w-full"
-          />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Region</label>
+                  <select
+                    name="region"
+                    value={formData.region}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  >
+                    <option value="">Select your region</option>
+                    {regionsInKenya.map(region => (
+                      <option key={region} value={region}>{region}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* New: Service Type */}
-          <select
-            name="serviceType"
-            value={formData.serviceType}
-            onChange={handleChange}
-            required
-            className="border border-gray-300 rounded-lg p-3 w-full bg-white"
-          >
-            <option value="">Select Service Type</option>
-            {serviceTypes.map(type => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
+              {/* Middle Column */}
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Details</label>
+                  <textarea
+                    name="locationDetails"
+                    value={formData.locationDetails}
+                    onChange={handleChange}
+                    placeholder="Estate, house number, landmarks..."
+                    rows={3}
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    required
+                  />
+                </div>
 
-          {/* New: Job Rate */}
-          <input
-            type="number"
-            name="jobRate"
-            value={formData.jobRate}
-            onChange={handleChange}
-            placeholder="Job Rate in Ksh"
-            required
-            min="0"
-            className="border border-gray-300 rounded-lg p-3 w-full"
-          />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Type</label>
+                  <select
+                    name="serviceType"
+                    value={formData.serviceType}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  >
+                    <option value="">Select service type</option>
+                    {serviceTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
 
-          <button
-            type="submit"
-            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition"
-          >
-            Submit Request
-          </button>
-        </form>
-      </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Rate (Ksh)</label>
+                  <input
+                    type="number"
+                    name="jobRate"
+                    value={formData.jobRate}
+                    onChange={handleChange}
+                    placeholder="Your estimated budget"
+                    required
+                    min="0"
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  />
+                </div>
+              </div>
 
-      {/* Right section: Info or image or anything else */}
-      <div className="flex-1 bg-indigo-50 rounded-lg p-6 flex flex-col justify-center">
-        <h3 className="text-xl font-semibold mb-4 text-indigo-700">Why Choose Our Services?</h3>
-        <p className="text-gray-700 mb-4">
-          Select the right professional for your job, specify your budget, and get quality service in your area.
-        </p>
-        <ul className="list-disc list-inside text-gray-600 space-y-2">
-          <li>Trusted Fundis and Professionals</li>
-          <li>Transparent Pricing</li>
-          <li>Wide Coverage Across Kenya</li>
-          <li>Quick and Reliable Support</li>
-        </ul>
+              {/* Right Column */}
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Description</label>
+                  <textarea
+                    name="serviceDescription"
+                    value={formData.serviceDescription}
+                    onChange={handleChange}
+                    placeholder="Describe in detail what you need done..."
+                    rows={5}
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Materials Needed (Optional)</label>
+                  <textarea
+                    name="materialsNeeded"
+                    value={formData.materialsNeeded}
+                    onChange={handleChange}
+                    placeholder="List any materials or tools required..."
+                    rows={2}
+                    className="w-full px-4 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              >
+                Submit Service Request
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
