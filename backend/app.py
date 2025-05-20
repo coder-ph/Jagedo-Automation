@@ -2,11 +2,18 @@ from flask import Flask, jsonify, request
 from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime
-from models import db
+from models import db, User, UserRole, BidStatus, JobStatus, Message
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 import os
 from dotenv import load_dotenv
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import (
+    JWTManager, create_access_token,
+    jwt_required, get_jwt_identity
+)
+from datetime import timedelta
+from functools import wraps
 
 load_dotenv()
 
@@ -18,16 +25,22 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-secret-key')
 app.config['JSON_SORT_KEYS'] = False
+app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
 
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
 
-# TODO: jwt configs here...
-# app.config[''] = 
+def get_current_user():
+    current_user_id = get_jwt_identity()
+    return User.query.get(int(current_user_id))
 
-# Helper functions
+# Helper functions. validation functions unused as of now.. not handling registration on api
 def validate_email(email):
     import re
     pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
@@ -51,13 +64,159 @@ def validate_required_fields(data, required_fields):
     if missing:
         raise ValueError(f'Missing required fields: {", ".join(missing)}')
 
-def get_current_user():
-    # TODO: Implement JWT
-    return None
+# auth helper
 
-def require_auth():
-    # TODO : require admin, require professional
-    return None
+def role_required(roles):
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            current_user = get_current_user()
+            if not current_user:
+                return jsonify({
+                    'success': False,
+                    'message': 'User not found',
+                    'data': None
+                }), 404
+            
+            if current_user.role not in roles:
+                return jsonify({
+                    'success': False,
+                    'message': 'Insufficient permissions',
+                    'data': None
+                }), 403
+            
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# routes
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = validate_json()
+        validate_required_fields(data, ['email', 'password'])
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'data': None
+        }), 400
+
+    user = User.query.filter_by(email=data['email']).first()
+    if not user or not bcrypt.check_password_hash(user.password_hash, data['password']):
+        return jsonify({
+            'success': False,
+            'message': 'Invalid credentials',
+            'data': None
+        }), 401
+
+    access_token = create_access_token(identity=str(user.id))
+    return jsonify({
+        'success': True,
+        'message': 'Login successful',
+        'data': {
+            'access_token': access_token
+        }
+    }), 200
+
+
+@app.route('/api/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'User not found',
+            'data': None
+        }), 404
+
+    return jsonify({
+        'success': True,
+        'message': 'Profile retrieved successfully',
+        'data': user.to_dict()
+    })
+
+# Admin only routes
+@app.route('/api/admin/dashboard', methods=['GET'])
+@role_required([UserRole.ADMIN])
+def admin_dashboard():
+    return jsonify({
+        'success': True,
+        'message': 'Admin dashboard accessed successfully',
+        'data': {
+            'total_users': User.query.count(),
+            'total_professionals': User.query.filter_by(role=UserRole.PROFESSIONAL).count(),
+            'total_customers': User.query.filter_by(role=UserRole.CUSTOMER).count()
+        }
+    })
+
+# Professional only routes
+@app.route('/api/professional/dashboard', methods=['GET'])
+@role_required([UserRole.PROFESSIONAL])
+def professional_dashboard():
+    current_user = get_current_user()
+    return jsonify({
+        'success': True,
+        'message': 'Professional dashboard accessed successfully',
+        'data': {
+            'total_bids': len(current_user.bids),
+            'active_jobs': len([bid for bid in current_user.bids if bid.status == BidStatus.ACCEPTED])
+        }
+    })
+
+# Customer only routes
+@app.route('/api/customer/dashboard', methods=['GET'])
+@role_required([UserRole.CUSTOMER])
+def customer_dashboard():
+    current_user = get_current_user()
+    return jsonify({
+        'success': True,
+        'message': 'Customer dashboard accessed successfully',
+        'data': {
+            'total_jobs': len(current_user.jobs),
+            'active_jobs': len([job for job in current_user.jobs if job.status == JobStatus.IN_PROGRESS])
+        }
+    })
+
+def role_required(roles):
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            current_user = get_current_user()
+            if not current_user:
+                return jsonify({
+                    'success': False,
+                    'message': 'User not found',
+                    'data': None
+                }), 404
+            
+            if current_user.role not in roles:
+                return jsonify({
+                    'success': False,
+                    'message': 'Insufficient permissions',
+                    'data': None
+                }), 403
+            
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+
+
+
+
+
+
+
+
+
 
 
 
