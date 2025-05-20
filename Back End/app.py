@@ -716,6 +716,81 @@ def list_project_documents(project_id):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    
+@app.route('/api/documents/<int:document_id>', methods=['GET'])
+@jwt_required()
+def download_document(document_id):
+    """
+    Download a document
+    """
+    try:
+        document = Document.query.get_or_404(document_id)
+        current_user = get_current_user()
+        
+        # Check access
+        has_access, message = has_document_access(current_user.id, document)
+        if not has_access:
+            return jsonify({'error': message}), 403
+        
+        # Check if file exists
+        if not os.path.exists(document.filepath):
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Determine MIME type
+        mime_type = 'application/octet-stream'
+        if '.' in document.filename:
+            ext = document.filename.rsplit('.', 1)[1].lower()
+            mime_type = {
+                'pdf': 'application/pdf',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'png': 'image/png',
+                'doc': 'application/msword',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'txt': 'text/plain'
+            }.get(ext, 'application/octet-stream')
+        
+        # Send file
+        return send_file(
+            document.filepath,
+            as_attachment=True,
+            download_name=document.filename,
+            mimetype=mime_type
+        )
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
+@app.route('/api/documents/<int:document_id>', methods=['DELETE'])
+@jwt_required()
+def delete_document(document_id):
+    """
+    Delete a document
+    """
+    try:
+        document = Document.query.get_or_404(document_id)
+        current_user = get_current_user()
+        
+        # Only document uploader or admin can delete
+        if document.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Delete file if it exists
+        if os.path.exists(document.filepath):
+            os.remove(document.filepath)
+        
+        # Delete database record
+        db.session.delete(document)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Document deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def find_matching_contractors(project_id):
     """
