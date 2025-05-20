@@ -2,7 +2,7 @@ import random
 from faker import Faker
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
-from werkzeug.security import generate_password_hash
+from flask_bcrypt import Bcrypt
 from app import app 
 from models import db, User, UserRole, Job, Category, Skill, ProfessionalSkill, Bid, JobStatus, BidStatus, Review, Message, Attachment, Notification
 
@@ -50,7 +50,8 @@ def create_categories_and_skills():
 
 def create_users(num_customers=10, num_professionals=10):
     password = "password123"  # This will be the password for all users
-    password_hash = generate_password_hash(password)
+    bcrypt = Bcrypt()
+    password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
     
     # Create admin user
     admin = User(
