@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage'; // ✅ Import the LoginPage
+import SignUpPage from './logins/SignUpPage.jsx';
 
 function App() {
   return (
@@ -16,6 +17,9 @@ function App() {
           
           {/* Login Page */}
           <Route path="/login" element={<LoginPage />} />
+
+           {/* signup Page */}
+          <Route path='signup' element={<SignUpPage/>} />
         </Routes>
 
         <Footer />
