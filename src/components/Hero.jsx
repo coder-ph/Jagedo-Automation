@@ -12,19 +12,19 @@ const HeroSection = () => {
       name: 'Professional',
       description: 'Certified experts for specialized projects',
       image: '/images/professional.webp',
-      colorClass: 'from-green-500 to-green-600'
+      colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Hardware',
       description: 'Quality materials and supplies',
       image: '/images/hardware.webp',
-      colorClass: 'from-orange-500 to-orange-600'
+      colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Contractor',
       description: 'Full-service construction professionals',
       image: '/images/contractor.webp',
-      colorClass: 'from-purple-500 to-purple-600'
+      colorClass: 'from-blue-500 to-blue-600'
     }
   ];
 
