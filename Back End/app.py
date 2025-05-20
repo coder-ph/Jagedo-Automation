@@ -125,16 +125,23 @@ def validate_required_fields(data, required_fields):
     
     # location filtering
     def get_location_hierarchy(location):
-     
+   
+        if not location:
+            return {}
+            
+        parts = [p.strip() for p in location.split(',')]
+        parts = [p for p in parts if p]  
         
-        parts = location.lower().split(',')
-        parts = [p.strip() for p in parts]
-        return {
+        hierarchy = {
             'full': location,
-            'county': parts[-1] if len(parts) > 0 else None,
-            'subcounty': parts[-2] if len(parts) > 1 else None,
-            'ward': parts[-3] if len(parts) > 2 else None
+            'building': parts[0] if len(parts) > 0 else None,
+            'street': parts[1] if len(parts) > 1 else None,
+            'ward': parts[2] if len(parts) > 2 else None,
+            'subcounty': parts[3] if len(parts) > 3 else None,
+            'county': parts[4] if len(parts) > 4 else None
         }
+    
+    return hierarchy
     
     def location_match_score(client_location, contractor_location):
         """
