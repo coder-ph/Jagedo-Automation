@@ -124,44 +124,59 @@ def validate_required_fields(data, required_fields):
         raise ValueError(f'Missing required fields: {", ".join(missing)}')
     
     # location filtering
-    def get_location_hierarchy(location):
+def get_location_hierarchy(location):
    
-        if not location:
-            return {}
-            
-        parts = [p.strip() for p in location.split(',')]
-        parts = [p for p in parts if p]  
+    if not location:
+        return {}
         
-        hierarchy = {
-            'full': location,
-            'building': parts[0] if len(parts) > 0 else None,
-            'street': parts[1] if len(parts) > 1 else None,
-            'ward': parts[2] if len(parts) > 2 else None,
-            'subcounty': parts[3] if len(parts) > 3 else None,
-            'county': parts[4] if len(parts) > 4 else None
-        }
+    parts = [p.strip() for p in location.split(',')]
+    parts = [p for p in parts if p]  
+    
+    hierarchy = {
+        'full': location,
+        'building': parts[0] if len(parts) > 0 else None,
+        'street': parts[1] if len(parts) > 1 else None,
+        'ward': parts[2] if len(parts) > 2 else None,
+        'subcounty': parts[3] if len(parts) > 3 else None,
+        'county': parts[4] if len(parts) > 4 else None
+    }
     
     return hierarchy
     
-    def location_match_score(client_location, contractor_location):
-        """
-        Calculate a match score between client and contractor locations
-        Higher score means better match
-        """
-        client = get_location_hierarchy(client_location)
-        contractor = get_location_hierarchy(contractor_location)
-        
-        if client['full'] == contractor['full']:
-            return 3  
-        elif client['ward'] and client['ward'] == contractor.get('ward'):
-            return 2  
-        elif client['subcounty'] and client['subcounty'] == contractor.get('subcounty'):
-            return 1  
-        elif client['county'] and client['county'] == contractor.get('county'):
-            return 0.5  
-        return 0  
+def location_match_score(client_location, contractor_location):
+    """
+    Calculate a match score between client and contractor locations
+    Returns: score (float), match_type (str)
+    """
+    if not client_location or not contractor_location:
+        return 0.0, 'no_location'
     
-    def calculate_bid_score(bid):
+    client = get_location_hierarchy(client_location)
+    contractor = get_location_hierarchy(contractor_location)
+    
+    # Exact match (same building/street)
+    if client.get('building') and client.get('building') == contractor.get('building'):
+        return 1.0, 'exact'
+    
+    # Same street
+    if client.get('street') and client.get('street') == contractor.get('street'):
+        return 0.9, 'same_street'
+    
+    # Same ward
+    if client.get('ward') and client.get('ward') == contractor.get('ward'):
+        return 0.7, 'same_ward'
+    
+    # Same sub-county
+    if client.get('subcounty') and client.get('subcounty') == contractor.get('subcounty'):
+        return 0.5, 'same_subcounty'
+    
+    # Same county
+    if client.get('county') and client.get('county') == contractor.get('county'):
+        return 0.3, 'same_county'
+    
+    return 0.0, 'no_match'
+
+def calculate_bid_score(bid):
         # NCA Level (40%)
         nca_score = (bid.contractor.nca_level / 8) * 40  # Assuming NCA level 1-10
         
@@ -180,6 +195,38 @@ def validate_required_fields(data, required_fields):
         success_score = (success_rate / 100) * 10
         
         return nca_score + rating_score + amount_score + success_score
+    
+def find_contractors_for_project(project_id, min_score=0.3, max_results=20):
+    """
+    Find contractors for a project with location-based fallback
+    Returns: list of (contractor, score, match_type) tuples
+    """
+    project = Job.query.get(project_id)
+    if not project:
+        return []
+    
+    # Get all active professionals
+    professionals = User.query.filter_by(
+        role=UserRole.PROFESSIONAL,
+        is_active=True  # Assuming we have this field
+    ).all()
+    
+    # Score each professional
+    scored_contractors = []
+    for pro in professionals:
+        score, match_type = location_match_score(project.location, pro.location)
+        if score >= min_score:
+            scored_contractors.append({
+                'contractor': pro,
+                'score': score,
+                'match_type': match_type
+            })
+    
+    # Sort by score (descending)
+    scored_contractors.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Apply max results
+    return scored_contractors[:max_results]
 
 # auth helper
 
@@ -323,6 +370,41 @@ def role_required(roles):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+@app.route('/api/projects/<int:project_id>/recommended-contractors', methods=['GET'])
+@jwt_required()
+def get_recommended_contractors(project_id):
+    try:
+        project = Job.query.get_or_404(project_id)
+        current_user = get_current_user()
+        
+        # Verify access
+        if current_user.id != project.customer_id and current_user.role != UserRole.ADMIN:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        # Get recommended contractors
+        contractors = find_contractors_for_project(project_id)
+        
+        # Format response
+        result = [{
+            'id': item['contractor'].id,
+            'name': item['contractor'].name,
+            'company': item['contractor'].company_name,
+            'location': item['contractor'].location,
+            'match_score': item['score'],
+            'match_type': item['match_type'],
+            'nca_level': item['contractor'].nca_level,
+            'rating': item['contractor'].average_rating,
+            'success_rate': (item['contractor'].successful_bids / item['contractor'].total_bids * 100) if item['contractor'].total_bids > 0 else 0
+        } for item in contractors]
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Test Routes
 @app.route('/api/test', methods=['POST', 'GET'])
