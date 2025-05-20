@@ -26,14 +26,14 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Simulate API call
+      // Simulate API call or real authentication
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Replace with actual authentication logic
+      // Here, add your actual login logic (e.g., fetch API to backend)
       console.log('Logging in with:', formData);
 
-      // Redirect after successful login
-      navigate('/dashboard');
+      // On successful login, redirect to customer service request page
+      navigate('/customer-request');
     } catch (err) {
       setError('Invalid credentials. Please try again.');
     } finally {
@@ -94,6 +94,7 @@ const LoginPage = () => {
                 type="button"
                 onClick={togglePasswordVisibility}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                tabIndex={-1}
               >
                 {showPassword ? (
                   <FaEyeSlash className="text-gray-400 hover:text-gray-600" />
