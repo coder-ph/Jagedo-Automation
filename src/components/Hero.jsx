@@ -5,25 +5,25 @@ const HeroSection = () => {
     {
       name: 'Fundi',
       description: 'Skilled craftsmen for all your repair needs',
-      image: '/images/fundi.webp',
+      image: 'public/images/Wrench.webp', // This is correct if image is in public/images
       colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Professional',
       description: 'Certified experts for specialized projects',
-      image: '/images/professional.webp',
+      image: 'public/images/Reflector.webp',
       colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Hardware',
       description: 'Quality materials and supplies',
-      image: '/images/hardware.webp',
+      image: 'public/images/Toolbox.webp',
       colorClass: 'from-blue-500 to-blue-600'
     },
     {
       name: 'Contractor',
       description: 'Full-service construction professionals',
-      image: '/images/contractor.webp',
+      image: 'public/images/Helmet.webp',
       colorClass: 'from-blue-500 to-blue-600'
     }
   ];
@@ -52,7 +52,6 @@ const HeroSection = () => {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Connect with trusted construction professionals and suppliers in your area
           </p>
-          
         </div>
 
         {/* Category cards */}
@@ -67,6 +66,10 @@ const HeroSection = () => {
                 src={category.image} 
                 alt={category.name}
                 className="w-full h-64 object-cover mix-blend-overlay opacity-80 group-hover:opacity-90 transition-all duration-500 group-hover:scale-110"
+                onError={(e) => {
+                  e.target.onerror = null; 
+                  e.target.src = '/images/placeholder.webp'; // Add a fallback image
+                }}
               />
               <div className="absolute inset-0 flex flex-col justify-end p-6 z-20">
                 <h3 className="text-2xl font-bold text-white mb-2">{category.name}</h3>
@@ -75,7 +78,6 @@ const HeroSection = () => {
                   Find {category.name}
                 </button>
               </div>
-              
             </div>
           ))}
         </div>
