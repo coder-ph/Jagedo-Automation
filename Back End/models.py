@@ -74,7 +74,7 @@ class Bid(db.Model):
     __tablename__ = 'bids'
     
     id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
     professional_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     proposal = db.Column(db.Text, nullable=False)
@@ -83,9 +83,6 @@ class Bid(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     location_score = db.Column(db.Float, nullable=True)
     location_match_type = db.Column(db.String(50), nullable=True)
-
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
-    professional_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint('job_id', 'professional_id', name='uq_job_professional'),

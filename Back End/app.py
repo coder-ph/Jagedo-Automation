@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime, timedelta
-from models import db, User, UserRole, BidStatus, JobStatus, Message, Document, Job, Bid, Notification
+from models import db, User, UserRole, BidStatus, JobStatus, Message, Attachment as Document, Job, Bid, Notification
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
@@ -897,7 +897,7 @@ def initiate_stk_push(phone, amount, account_reference, description):
     
     return response.json()
 
-@app.route('api/mpesa/callback', methods=['POST'])
+@app.route('/api/mpesa/callback', methods=['POST'])
 def mpesa_callback():
     try:
         data = request.get_json()
@@ -1188,11 +1188,9 @@ def update_project_status(project_id, new_status, notes=None):
             
         old_status = project.status
         
-        # Skip if status is not changing
         if old_status == new_status:
             return True
             
-        # Validate status transition
         valid_transitions = {
             JobStatus.DRAFT: [JobStatus.OPEN, JobStatus.CANCELLED],
             JobStatus.OPEN: [JobStatus.AWARDED, JobStatus.CANCELLED],
@@ -1207,14 +1205,11 @@ def update_project_status(project_id, new_status, notes=None):
         if new_status not in valid_transitions.get(old_status, []):
             return False
             
-        # Update status
         project.status = new_status
         
-        # Update notes if provided
         if notes:
             project.notes = notes
             
-        # Log status change
         status_change = ProjectStatusHistory(
             project_id=project_id,
             from_status=old_status,
@@ -1225,7 +1220,6 @@ def update_project_status(project_id, new_status, notes=None):
         db.session.add(status_change)
         db.session.commit()
         
-        # Notify relevant parties about status change
         notify_status_change(project, old_status, new_status)
         
         return True
