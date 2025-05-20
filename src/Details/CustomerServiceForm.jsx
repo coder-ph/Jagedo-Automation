@@ -42,16 +42,16 @@ const CustomerServiceRequest = () => {
     e.preventDefault();
     
     // Show success toast
-    toast.success('Service request submitted successfully!', {
-      position: "top-center",
-      autoClose: 2000,
+    toast.success('Service request submitted successfully! Redirecting to dashboard...', {
+      position: "top-left",
+      autoClose: 2500,
       hideProgressBar: false,
       closeOnClick: true,
       pauseOnHover: true,
       draggable: true,
       progress: undefined,
       theme: "colored",
-      onClose: () => navigate('/dashboard') // Navigate after toast closes
+      onClose: () => navigate('/dashboard')
     });
     
     console.log('Service Request Submitted:', formData);
@@ -59,7 +59,18 @@ const CustomerServiceRequest = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
-      <ToastContainer />
+      {/* Custom positioned ToastContainer below navbar on left */}
+      <ToastContainer 
+        position="top-left"
+        autoClose={2500}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        style={{ top: '4rem', left: '1rem' }}
+      />
       
       <div className="w-full max-w-5xl">
         <div className="text-center mb-8">
@@ -70,7 +81,7 @@ const CustomerServiceRequest = () => {
         <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8">
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column */}
+              {/* Left Column - Personal Details */}
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
@@ -128,7 +139,7 @@ const CustomerServiceRequest = () => {
                 </div>
               </div>
 
-              {/* Middle Column */}
+              {/* Middle Column - Service Details */}
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Details</label>
@@ -174,7 +185,7 @@ const CustomerServiceRequest = () => {
                 </div>
               </div>
 
-              {/* Right Column */}
+              {/* Right Column - Additional Info */}
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Description</label>
