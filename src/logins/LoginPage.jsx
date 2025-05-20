@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const LoginPage = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const [userType, setUserType] = useState('customer');
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -13,15 +11,6 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // Get user type from URL params
-  useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const type = queryParams.get('type');
-    if (type && ['customer', 'professional'].includes(type)) {
-      setUserType(type);
-    }
-  }, [location.search]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -39,16 +28,12 @@ const LoginPage = () => {
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Replace with actual authentication logic
-      console.log(`Logging in as ${userType}`, formData);
-      
-      // Redirect based on user type after successful login
-      if (userType === 'customer') {
-        navigate('/customer-dashboard');
-      } else {
-        navigate('/professional-dashboard');
-      }
+      console.log('Logging in with:', formData);
+
+      // Redirect after successful login
+      navigate('/dashboard');
     } catch (err) {
       setError('Invalid credentials. Please try again.');
     } finally {
@@ -62,30 +47,14 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
-        {/* Header with user type toggle */}
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {userType === 'customer' ? 'Customer Login' : 'Professional Login'}
-          </h2>
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={() => setUserType('customer')}
-              className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${userType === 'customer' ? 'bg-white text-indigo-600' : 'text-white hover:bg-white/20'}`}
-            >
-              I'm a Customer
-            </button>
-            <button
-              onClick={() => setUserType('professional')}
-              className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${userType === 'professional' ? 'bg-white text-purple-600' : 'text-white hover:bg-white/20'}`}
-            >
-              I'm a Professional
-            </button>
-          </div>
+          <h2 className="text-3xl font-bold text-white">Sign In</h2>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {error && (
             <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
               <p>{error}</p>
@@ -136,23 +105,16 @@ const LoginPage = () => {
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <label className="flex items-center text-sm text-gray-700">
               <input
-                id="remember-me"
-                name="remember-me"
                 type="checkbox"
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                Remember me
-              </label>
-            </div>
-
-            <div className="text-sm">
-              <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Forgot password?
-              </a>
-            </div>
+              <span className="ml-2">Remember me</span>
+            </label>
+            <a href="#" className="text-sm text-indigo-600 hover:text-indigo-500">
+              Forgot password?
+            </a>
           </div>
 
           <button
@@ -169,16 +131,16 @@ const LoginPage = () => {
                 Signing in...
               </>
             ) : (
-              `Sign in as ${userType}`
+              'Sign In'
             )}
           </button>
         </form>
 
-        <div className="px-6 pb-6 text-center">
+        <div className="px-8 pb-6 text-center">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <a href={userType === 'customer' ? '/signup/customer' : '/signup/professional'} className="font-medium text-indigo-600 hover:text-indigo-500">
-              Sign up as {userType}
+            <a href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Sign up
             </a>
           </p>
         </div>
