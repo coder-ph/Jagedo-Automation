@@ -571,7 +571,7 @@ def professional_dashboard():
 @app.route('/api/projects/<int:project_id>/bids', methods=['POST'])
 @jwt_required()
 @role_required([UserRole.PROFESSIONAL])
-def submit_bid(project_id):
+async def submit_bid(project_id):
     try:
         data = validate_json()
         required_fields = ['amount', 'proposal', 'timeline_weeks']
@@ -624,6 +624,11 @@ def submit_bid(project_id):
         db.session.add(bid)
         db.session.commit()
       
+        # Initialize bid automation and process the new bid
+        from bid_automation import BidAutomation
+        bid_automation = BidAutomation()
+        await bid_automation.handle_new_bid(bid.id)
+        
         # Notify project owner about the new bid
         send_notification(
             project.customer_id,
