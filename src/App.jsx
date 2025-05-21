@@ -1,47 +1,115 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
-import SignUpPage from './logins/SignUpPage.jsx';
-import CustomerServiceRequest from './Details/CustomerServiceForm.jsx';
-import CustomerDashboard from './dashboard/Customer'; 
-
-// Optional: placeholders for other user forms, in case you want to add routes for professionals and fundis later
-const ProfessionalServiceRequest = () => (
-  <div className="p-6 text-center text-xl font-semibold">Professional Service Request Page (Coming Soon)</div>
-);
-const FundiServiceRequest = () => (
-  <div className="p-6 text-center text-xl font-semibold">Fundi Service Request Page (Coming Soon)</div>
-);
+import SignUpPage from './logins/SignUpPage';
+import CustomerServiceForm from './logins/CustomerServiceForm';
+import DashboardLayout from './dashboard/DashboardLayout';
+import CustomerDashboard from './dashboard/customer/CustomerDashboard';
+import ProjectsList from './dashboard/customer/ProjectsList';
+import ProjectDetails from './dashboard/customer/ProjectDetails';
+import ProjectDetailsLeft from './dashboard/customer/ProjectDetailsLeft';
+import ProjectDetailsRight from './dashboard/customer/ProjectDetailsRight';
+import ProjectDetailsModal from './dashboard/customer/ProjectDetailsModal';
+import ProjectFilesSection from './dashboard/customer/ProjectFilesSection';
+import ProjectFilesModal from './dashboard/customer/ProjectFilesModal';
+import ProjectsTabs from './dashboard/customer/ProjectsTabs';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+
+  const handleLogin = (role) => {
+    setIsAuthenticated(true);
+    setUserRole(role);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserRole(null);
+  };
+
   return (
     <BrowserRouter>
       <div className="min-h-screen flex flex-col">
-        <Navbar />
+        {/* Navbar always visible */}
+        <Navbar isAuthenticated={isAuthenticated} onLogout={handleLogout} />
+        
+        <main className="flex-grow">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Hero />} />
+            <Route 
+              path="/login" 
+              element={
+                !isAuthenticated ? (
+                  <LoginPage onLogin={handleLogin} />
+                ) : (
+                  <Navigate to="/customer-dashboard" replace />
+                )
+              } 
+            />
+            <Route 
+              path="/signup" 
+              element={
+                !isAuthenticated ? (
+                  <SignUpPage />
+                ) : (
+                  <Navigate to="/customer-dashboard" replace />
+                )
+              } 
+            />
+            <Route path="/customer-request" element={<CustomerServiceForm />} />
 
-        <Routes>
-          {/* Homepage */}
-          <Route path="/" element={<Hero />} />
+            {/* Protected Routes */}
+            <Route 
+              path="/customer-dashboard/*" 
+              element={
+                isAuthenticated ? (
+                  <DashboardLayout role={userRole} onLogout={handleLogout} />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            >
+              <Route index element={<CustomerDashboard />} />
+              <Route path="projects" element={<ProjectsList />} />
+              <Route path="projects/:id" element={<ProjectDetails />}>
+                <Route 
+                  path="details" 
+                  element={
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+                      <div className="lg:col-span-2">
+                        <ProjectDetailsLeft />
+                      </div>
+                      <div className="lg:col-span-1">
+                        <ProjectDetailsRight />
+                        <ProjectDetailsModal />
+                      </div>
+                    </div>
+                  } 
+                />
+                <Route 
+                  path="files" 
+                  element={
+                    <div className="p-4">
+                      <ProjectFilesSection />
+                      <ProjectFilesModal />
+                    </div>
+                  } 
+                />
+              </Route>
+              <Route path="tabs" element={<ProjectsTabs />} />
+            </Route>
 
-          {/* Login Page */}
-          <Route path="/login" element={<LoginPage />} />
+            {/* Fallback route */}
+            <Route path="*" element={<Navigate to={isAuthenticated ? "/customer-dashboard" : "/"} />} />
+          </Routes>
+        </main>
 
-          {/* Signup Page */}
-          <Route path="/signup" element={<SignUpPage />} />
-
-          {/* Customer Service Request Page */}
-          <Route path="/customer-request" element={<CustomerServiceRequest />} />
-
-          {/* Customer Dashboard */}
-          <Route path="/customer-dashboard" element={<CustomerDashboard />} /> 
-
-          {/* Optional placeholders for other user roles */}
-          <Route path="/professional-request" element={<ProfessionalServiceRequest />} />
-          <Route path="/fundi-request" element={<FundiServiceRequest />} />
-        </Routes>
-
+        {/* Footer always visible */}
         <Footer />
       </div>
     </BrowserRouter>
