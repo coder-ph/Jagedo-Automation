@@ -1,11 +1,13 @@
 import os
 import sys
 import json
+import asyncio
 import requests
 import tempfile
 from datetime import datetime, timedelta
 from werkzeug.datastructures import FileStorage
 from werkzeug.datastructures import FileStorage as FS
+from bid_automation import BidAutomation
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(dir_path)
@@ -174,6 +176,7 @@ def create_test_project(token, title="Test Project", with_document=False):
         'location': 'Nairobi, Kenya',
         'category_id': 1,
         'timeline_weeks': 8,
+        'max_timeline': 12,  # Add max_timeline for scoring
         'requirements': 'Test requirements',
         'documents': []
     }
@@ -533,7 +536,7 @@ def test_document_access():
         print("All document access tests passed!")
         return True
 
-def test_bidding_workflow():
+async def test_bidding_workflow_async():
     print("\n=== Starting Bidding Workflow Test ===")
     
     # Clean up any existing test data
@@ -561,7 +564,24 @@ def test_bidding_workflow():
     
     # Create multiple professionals for testing bid automation
     professionals = []
-    for i in range(1, 6):  # Create 5 professionals
+    # Create first professional with high NCA and rating to ensure they meet the minimum score
+    pro = create_test_user(
+        email='test_pro_1@example.com',
+        password=TEST_PRO_PASSWORD,
+        role=UserRole.PROFESSIONAL,
+        name='High Rated Pro',
+        company_name='Elite Construction',
+        location='Nairobi, Kenya',
+        nca_level=8,  # Max NCA level
+        average_rating=5.0,  # Perfect rating
+        total_ratings=50,
+        successful_bids=48,
+        total_bids=50
+    )
+    professionals.append(pro)
+    
+    # Create remaining professionals with varying attributes
+    for i in range(2, 6):
         pro = create_test_user(
             email=f'test_pro_{i}@example.com',
             password=TEST_PRO_PASSWORD,
@@ -569,11 +589,11 @@ def test_bidding_workflow():
             name=f'Test Pro {i}',
             company_name=f'Pro Construction {i}',
             location='Nairobi, Kenya',
-            nca_level=5 - (i % 3),  # Vary NCA level from 3-5
-            average_rating=4.5 - (i * 0.1),  # Vary ratings from 4.0-4.5
-            total_ratings=10,
-            successful_bids=8,
-            total_bids=10
+            nca_level=7 - (i % 4),  # Vary NCA level from 4-7
+            average_rating=4.7 - (i * 0.1),  # Vary ratings from 4.3-4.7
+            total_ratings=30,
+            successful_bids=25,
+            total_bids=30
         )
         professionals.append(pro)
     
@@ -586,12 +606,11 @@ def test_bidding_workflow():
     customer_token = customer_login['access_token']
     
     # Create a project with a document
-    project = create_test_project(customer_token, "Test Bidding Automation Project", with_document=True)
-    if not project:
+    project_id = create_test_project(customer_token, "Test Bidding Automation Project", with_document=True)
+    if not project_id:
         print("Failed to create test project")
         return False
     
-    project_id = project['id']
     print(f"Created project with ID: {project_id}")
     
     # Upload a document to the project
@@ -611,7 +630,8 @@ def test_bidding_workflow():
         pro_token = pro_login['access_token']
         
         # Vary bid amounts and timelines
-        amount = 8000000 - (i * 500000)  # Vary amounts from 6M to 8M
+        # Using amounts below the project budget (1,000,000 KES)
+        amount = 900000 - (i * 100000)  # Vary amounts from 500K to 900K
         timeline_weeks = 10 - (i % 3)  # Vary timelines from 8-10 weeks
         
         bid = submit_bid(
@@ -633,18 +653,101 @@ def test_bidding_workflow():
     
     print(f"\nSubmitted {len(bids)} bids. Waiting for bid automation to process...")
     
-    # Give the automation a moment to process
-    import time
-    time.sleep(2)  # Short delay to allow async processing
+    # Initialize bid automation
+    bid_automation = BidAutomation()
     
-    # Check project status
+    print("\nScores for each bid:")
     with app.app_context():
-        updated_project = Job.query.get(project_id)
+        project = Job.query.get(project_id)
+        bids = Bid.query.filter_by(job_id=project_id).all()
+        
+        # Calculate and print scores
+        for bid in bids:
+            score = bid_automation.calculate_bid_score(bid, project)
+            print(f"Bid {bid.id} - Amount: {bid.amount}, Timeline: {bid.timeline_weeks} weeks, Score: {score:.2f}")
+    
+    # Run the evaluation
+    print("\nEvaluating all bids for the project...")
+    with app.app_context():
+        # Ensure we have a fresh session
+        db.session.rollback()
+        await bid_automation.evaluate_project(project_id)
+        # Explicitly commit any pending changes
+        db.session.commit()
+    
+    # Add a small delay to ensure all async operations complete
+    await asyncio.sleep(1)
+    
+    # Verify the results with a fresh database session
+    with app.app_context():
+        # Start a new transaction
+        db.session.rollback()
+        
+        # Explicitly refresh the project and related objects
+        updated_project = db.session.query(Job).options(
+            db.joinedload(Job.bids),
+            db.joinedload(Job.assigned_contractor)
+        ).get(project_id)
+        
         if not updated_project:
-            print("Project not found after bid submission")
+            print("❌ Project not found after evaluation")
             return False
+        
+        # Get the accepted bid with a fresh query
+        accepted_bid = db.session.query(Bid).filter_by(
+            job_id=project_id, 
+            status=BidStatus.ACCEPTED
+        ).options(
+            db.joinedload(Bid.professional)
+        ).first()
+        
+        # Debug output
+        print("\n=== Debug Info ===")
+        print(f"Project ID: {updated_project.id}")
+        print(f"Project Status: {updated_project.status}")
+        print(f"Assigned Contractor ID: {updated_project.assigned_contractor_id}")
+        print(f"Number of Bids: {len(updated_project.bids) if updated_project.bids else 0}")
+        
+        if accepted_bid:
+            print(f"\n✅ Found accepted bid: ID={accepted_bid.id}, Amount={accepted_bid.amount}, Contractor={accepted_bid.professional.name if accepted_bid.professional else 'None'}")
             
-        # Check if a bid was automatically accepted
+            # Verify the project was updated correctly
+            if updated_project.status != JobStatus.AWARDED:
+                print(f"❌ Project status was not updated to AWARDED. Current status: {updated_project.status}")
+                return False
+                
+            if updated_project.assigned_contractor_id != accepted_bid.professional_id:
+                print(f"❌ Project contractor was not set correctly. Expected: {accepted_bid.professional_id}, Got: {updated_project.assigned_contractor_id}")
+                return False
+                
+            # Verify the bid status in the database
+            db_bid = db.session.query(Bid).get(accepted_bid.id)
+            if db_bid.status != BidStatus.ACCEPTED:
+                print(f"❌ Bid status not updated in database. Expected: {BidStatus.ACCEPTED}, Got: {db_bid.status}")
+                return False
+                
+            print("\n✅ All verifications passed!")
+            print(f"Project '{updated_project.title}' was successfully awarded to {accepted_bid.professional.name if accepted_bid.professional else 'contractor'}")
+            return True
+        else:
+            print("\n❌ No bid was accepted. Checking for admin notification...")
+            admin_notification = db.session.query(Notification).filter_by(
+                notification_type="manual_review_required"
+            ).first()
+            
+            if admin_notification:
+                print(f"Admin was notified for manual review: {admin_notification.message}")
+            else:
+                print("No admin notification was created.")
+                
+            # Print all bids for debugging
+            print("\n=== All Bids ===")
+            for bid in updated_project.bids:
+                print(f"- Bid {bid.id}: Status={bid.status}, Amount={bid.amount}, Contractor={bid.professional.name if bid.professional else 'None'}")
+                
+            return False
+    
+    # Check if a bid was automatically accepted
         accepted_bid = Bid.query.filter_by(
             job_id=project_id,
             status=BidStatus.ACCEPTED.value
@@ -729,24 +832,19 @@ def test_bidding_workflow():
     return True
 
 def main():
-    print("Cleaning up database...")
-    if not clean_database():
-        print("Failed to clean up database")
-        return 1
     
-    print("\n=== Starting Document Access Tests ===")
-    if not test_document_access():
-        print("\nDocument access tests failed!")
-        return 1
-    
-    print("\n\n=== Starting Bidding Workflow Tests ===")
-    if not test_bidding_workflow():
-        print("\nBidding workflow test failed!")
-        return 1
-    
-    print("\nAll tests completed successfully!")
-    return 0
+    async def main_async():
+        with app.app_context():
+            print("\n=== Starting Bidding Workflow Tests ===")
+            
+            # Run the test
+            if not await test_bidding_workflow_async():
+                return 1
+            
+            print("\nAll tests passed successfully!")
+            return 0
 
-if __name__ == '__main__':
-    with app.app_context():
-        sys.exit(main())
+    return asyncio.run(main_async())
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,4 +1,5 @@
 import os
+import json
 import time
 from datetime import datetime, timedelta
 from sqlalchemy import and_
@@ -55,40 +56,51 @@ class BidAutomation:
         thread.start()
 
     async def evaluate_project(self, project_id):
-   
         with app.app_context():
             try:
+                print(f"\n=== Starting evaluation for project {project_id} ===")
                 project = Job.query.get(project_id)
                 if not project:
-                    app.logger.error(f"Project {project_id} not found for evaluation")
+                    error_msg = f"Project {project_id} not found for evaluation"
+                    app.logger.error(error_msg)
+                    print(error_msg)
                     return
 
-                
+                print(f"Project status: {project.status}")
                 if project.status != JobStatus.OPEN:
-                    app.logger.info(f"Project {project_id} is no longer open for bidding")
+                    info_msg = f"Project {project_id} is no longer open for bidding (status: {project.status})"
+                    app.logger.info(info_msg)
+                    print(info_msg)
                     return
 
                 bids = Bid.query.filter_by(job_id=project_id, status=BidStatus.PENDING).all()
+                print(f"Found {len(bids)} pending bids for project {project_id}")
                 
                 if not bids:
-                    app.logger.info(f"No pending bids found for project {project_id}")
+                    info_msg = f"No pending bids found for project {project_id}"
+                    app.logger.info(info_msg)
+                    print(info_msg)
                     await self.notify_admin_no_bids(project)
                     return
 
-                
+                print("\nScoring bids:")
                 scored_bids = []
                 for bid in bids:
                     score = self.calculate_bid_score(bid, project)
                     scored_bids.append((bid, score))
-                
+                    print(f"- Bid {bid.id}: Amount={bid.amount}, Timeline={bid.timeline_weeks}w, Score={score:.2f}, Bidder={bid.professional.name if bid.professional else 'None'}")
                 
                 scored_bids.sort(key=lambda x: x[1], reverse=True)
                 best_bid, best_score = scored_bids[0] if scored_bids else (None, 0)
+                
+                print(f"\nBest bid: ID={best_bid.id if best_bid else 'None'}, Score={best_score:.2f}, Min Winning Score={self.min_winning_score}")
 
-               
                 if best_bid and best_score >= self.min_winning_score:
+                    print(f"Accepting bid {best_bid.id} with score {best_score:.2f}")
                     await self.accept_bid(best_bid, best_score)
                 else:
+                    reason = "No bids meet minimum score" if best_bid else "No valid bids found"
+                    print(f"No bid accepted. Reason: {reason}")
                     await self.notify_admin_manual_review(project, best_bid, best_score)
 
             except Exception as e:
@@ -114,7 +126,7 @@ class BidAutomation:
        
         if 0 < bid.amount <= project.budget:
             
-            amount_score = ((project.budget - bid.amount) / project.budget) * 20
+            amount_score = float(((project.budget - bid.amount) / project.budget) * 20)
             score += amount_score
         
        
@@ -127,43 +139,101 @@ class BidAutomation:
         return max(0, min(100, score))
 
     async def accept_bid(self, bid, score):
-       
+        print(f"\n=== Starting accept_bid for bid {bid.id} ===")
+        print(f"Bid details: ID={bid.id}, Amount={bid.amount}, Bidder ID={bid.professional_id}")
+        print(f"Project: ID={bid.job.id}, Title='{bid.job.title}', Status={bid.job.status}")
+        
         with app.app_context():
             try:
+                # Start a new transaction
+                db.session.begin()
                 
-                bid.status = BidStatus.ACCEPTED
+                # Get fresh instances to avoid detached instance issues
+                fresh_bid = db.session.query(Bid).get(bid.id)
+                project = db.session.query(Job).get(bid.job.id)
                 
+                if not fresh_bid or not project:
+                    raise ValueError("Bid or Project not found in database")
                 
-                project = bid.job
+                print("Updating bid status to ACCEPTED...")
+                fresh_bid.status = BidStatus.ACCEPTED
+                
+                print(f"Updating project status to AWARDED and assigning contractor {fresh_bid.professional_id}...")
                 project.status = JobStatus.AWARDED
-                project.assigned_contractor_id = bid.professional_id
+                project.assigned_contractor_id = fresh_bid.professional_id
                 
+                print("Creating notifications...")
+                # Convert Decimal to float for JSON serialization
+                bid_amount = float(fresh_bid.amount) if hasattr(fresh_bid, 'amount') else 0.0
                 
-                notification = Notification(
-                    user_id=bid.professional_id,
+                # Get professional name from the bid's relationship or fall back to a query
+                if fresh_bid.professional:
+                    professional_name = fresh_bid.professional.name
+                else:
+                    # Fallback to query if relationship is not loaded
+                    professional = db.session.get(User, fresh_bid.professional_id)
+                    professional_name = professional.name if professional else "Unknown"
+                
+                # Notification for the contractor
+                contractor_notification = Notification(
+                    user_id=fresh_bid.professional_id,
                     title="Bid Accepted",
                     message=f"Your bid for project '{project.title}' has been accepted!",
+                    content=json.dumps({
+                        "project_id": project.id,
+                        "project_title": project.title,
+                        "bid_amount": bid_amount,
+                        "score": float(score) if score is not None else 0.0,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, default=str),
                     notification_type="bid_accepted"
                 )
-                db.session.add(notification)
+                db.session.add(contractor_notification)
+                print(f"Created contractor notification for user {fresh_bid.professional_id}")
                 
-                
-                notification = Notification(
+                # Notification for the customer
+                customer_notification = Notification(
                     user_id=project.customer_id,
                     title="Contractor Selected",
                     message=f"A contractor has been selected for your project '{project.title}'",
+                    content=json.dumps({
+                        "project_id": project.id,
+                        "project_title": project.title,
+                        "contractor_name": professional_name,
+                        "contractor_id": fresh_bid.professional_id,
+                        "bid_amount": bid_amount,
+                        "score": float(score) if score is not None else 0.0,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, default=str),
                     notification_type="contractor_selected"
                 )
-                db.session.add(notification)
+                db.session.add(customer_notification)
+                print(f"Created customer notification for user {project.customer_id}")
                 
+                print("Committing transaction...")
                 db.session.commit()
+                print("Transaction committed successfully!")
                 
-                app.logger.info(f"Bid {bid.id} accepted for project {project.id} with score {score}")
+                # Refresh the bid and project to ensure we have the latest data
+                db.session.refresh(fresh_bid)
+                db.session.refresh(project)
+                
+                log_msg = f"✅ Successfully accepted bid {fresh_bid.id} (${fresh_bid.amount}) for project {project.id} with score {score}"
+                app.logger.info(log_msg)
+                print(log_msg)
+                print(f"Bid status after commit: {fresh_bid.status}")
+                print(f"Project status after commit: {project.status}")
+                print(f"Project assigned contractor after commit: {project.assigned_contractor_id}")
+                
+                return True
                 
             except Exception as e:
                 db.session.rollback()
-                app.logger.error(f"Error accepting bid {bid.id}: {str(e)}")
+                error_msg = f"❌ Error accepting bid {bid.id}: {str(e)}"
+                app.logger.error(error_msg)
                 app.logger.exception("Full traceback:")
+                print(error_msg)
+                print("Transaction rolled back due to error")
                 raise
 
     async def notify_admin_no_bids(self, project):
