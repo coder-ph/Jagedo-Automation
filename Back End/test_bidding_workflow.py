@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime, timedelta
 from werkzeug.datastructures import FileStorage
 from werkzeug.datastructures import FileStorage as FS
+from sqlalchemy import text
 from bid_automation import BidAutomation
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -38,38 +39,49 @@ TEST_PRO_PASSWORD = 'password123'
 
 def create_test_user(email, password, role, **kwargs):
     with app.app_context():
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            db.session.delete(existing_user)
+        try:
+            # Start a new transaction
+            db.session.begin()
+            
+            # Check for existing user and delete if exists
+            existing_user = db.session.query(User).filter_by(email=email).first()
+            if existing_user:
+                db.session.delete(existing_user)
+                db.session.commit()
+            
+            # Create new user
+            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+            
+            user_data = {
+                'name': kwargs.get('name', 'Test User'),
+                'email': email,
+                'role': role,
+                'password_hash': hashed_password,
+                'company_name': kwargs.get('company_name', 'Test Company'),
+                'location': kwargs.get('location', 'Nairobi'),
+                'is_active': True
+            }
+            
+            if role == UserRole.PROFESSIONAL:
+                user_data.update({
+                    'nca_level': kwargs.get('nca_level', 5),
+                    'average_rating': kwargs.get('average_rating', 4.5),
+                    'total_ratings': kwargs.get('total_ratings', 10),
+                    'successful_bids': kwargs.get('successful_bids', 7),
+                    'total_bids': kwargs.get('total_bids', 10)
+                })
+            
+            user = User(**user_data)
+            db.session.add(user)
             db.session.commit()
-        
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        
-        user_data = {
-            'name': kwargs.get('name', 'Test User'),
-            'email': email,
-            'role': role,
-            'password_hash': hashed_password,
-            'company_name': kwargs.get('company_name', 'Test Company'),
-            'location': kwargs.get('location', 'Nairobi'),
-            'is_active': True
-        }
-        
-        if role == UserRole.PROFESSIONAL:
-            user_data.update({
-                'nca_level': kwargs.get('nca_level', 5),
-                'average_rating': kwargs.get('average_rating', 4.5),
-                'total_ratings': kwargs.get('total_ratings', 10),
-                'successful_bids': kwargs.get('successful_bids', 7),
-                'total_bids': kwargs.get('total_bids', 10)
-            })
-        
-        user = User(**user_data)
-        db.session.add(user)
-        db.session.commit()
-        print(f"Created test {role.value} with ID: {user.id}")
-        
-        return user
+            print(f"Created test {role.value} with ID: {user.id}")
+            
+            return user
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating test user {email}: {e}")
+            raise
 
 def login_user(email, password):
     login_url = f'{BASE_URL}/api/login'
@@ -386,44 +398,26 @@ def select_winning_bid(project_id, bid_id, token):
         }
 
 def clean_database():
-    from sqlalchemy import inspect, text
-    
-    try:
-        db.session.execute(text('PRAGMA foreign_keys = OFF'))
-        db.session.commit()
-        
-        inspector = inspect(db.engine)
-        metadata = db.metadata
-        
-        for table in reversed(metadata.sorted_tables):
-            try:
-                table.drop(db.engine)
-                print(f"Dropped table: {table.name}")
-            except Exception as e:
-                print(f"Warning: Could not drop table {table.name}: {str(e)}")
-        
-        db.create_all()
-        print("Recreated all tables")
-        
-        db.session.execute(text('PRAGMA foreign_keys = ON'))
-        db.session.commit()
-        
-        print("Database cleaned up and recreated successfully")
-        return True
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error during cleanup: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-    finally:
+    """Clean up the test database by dropping and recreating all tables."""
+    print("Cleaning up test database...")
+    with app.app_context():
         try:
-            db.session.execute(text('PRAGMA foreign_keys = ON'))
+            # Drop all tables
+            db.drop_all()
+            print("Dropped all tables")
+            
+            # Recreate all tables
+            db.create_all()
+            print("Recreated all tables")
+            
+            # Commit the changes
             db.session.commit()
+            print("Database cleaned up successfully")
+            return True
         except Exception as e:
-            print(f"Error in database cleanup: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error in database cleanup: {e}")
+            db.session.rollback()
+            return False
 
 def test_document_access():
     with app.app_context():
@@ -832,19 +826,307 @@ async def test_bidding_workflow_async():
     return True
 
 def main():
+    """Main function to run the test."""
+    # Initialize database first
+    with app.app_context():
+        if not clean_database():
+            print("Failed to initialize test database")
+            return 1
     
     async def main_async():
-        with app.app_context():
-            print("\n=== Starting Bidding Workflow Tests ===")
-            
-            # Run the test
+        try:
+            # Run the main test
+            print("\n=== Starting Main Bidding Workflow Test ===")
             if not await test_bidding_workflow_async():
                 return 1
             
-            print("\nAll tests passed successfully!")
+            # Clean up after first test
+            with app.app_context():
+                if not clean_database():
+                    print("Failed to clean up after first test")
+                    return 1
+            
+            # Run the admin notification test
+            print("\n=== Starting Admin Notification Flow Test ===")
+            if not await test_admin_notification_flow():
+                return 1
+                
             return 0
-
+            
+        except Exception as e:
+            print(f"Error in test execution: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+        finally:
+            # Always clean up at the end
+            with app.app_context():
+                clean_database()
+    
     return asyncio.run(main_async())
+
+async def test_admin_notification_flow():
+    print("\n=== Testing Admin Notification Flow ===")
+    
+    # Clean up any existing test data
+    clean_database()
+    
+    # Create test users
+    customer = create_test_user(
+        email='admin_flow_customer@example.com',
+        password=TEST_CUSTOMER_PASSWORD,
+        role=UserRole.CUSTOMER,
+        name='Admin Flow Customer',
+        company_name='Customer Company',
+        location='Nairobi, Kenya'
+    )
+    
+    # Create an admin user for notifications
+    admin = create_test_user(
+        email='admin_flow_admin@example.com',
+        password='admin123',
+        role=UserRole.ADMIN,
+        name='Admin Flow Admin',
+        company_name='Admin Company',
+        location='Nairobi, Kenya'
+    )
+    
+    # Create a professional who will be manually assigned
+    manual_assign_pro = create_test_user(
+        email='manual_assign_pro@example.com',
+        password=TEST_PRO_PASSWORD,
+        role=UserRole.PROFESSIONAL,
+        name='Manual Assign Pro',
+        company_name='Manual Assign Construction',
+        location='Nairobi, Kenya',
+        nca_level=5,
+        average_rating=4.0,
+        total_ratings=10,
+        successful_bids=8,
+        total_bids=10
+    )
+    
+    # Log in as customer
+    customer_login = login_user('admin_flow_customer@example.com', TEST_CUSTOMER_PASSWORD)
+    if not customer_login:
+        print("Failed to log in as customer")
+        return False
+    
+    customer_token = customer_login['access_token']
+    
+    # Create a project with a very low budget to ensure no bids meet the minimum score
+    project_data = {
+        'title': 'Admin Flow Test Project',
+        'description': 'This project will test admin notification flow',
+        'budget': 100000,  # Very low budget
+        'location': 'Nairobi, Kenya',
+        'category_id': 1,
+        'timeline_weeks': 4,
+        'max_timeline': 8,
+        'requirements': 'Test requirements for admin flow'
+    }
+    
+    response = requests.post(
+        f'{BASE_URL}/api/projects',
+        headers={'Authorization': f'Bearer {customer_token}'},
+        json=project_data
+    )
+    
+    if response.status_code != 201:
+        print(f"Failed to create test project: {response.text}")
+        return False
+    
+    project_id = response.json()['data']['project_id']
+    print(f"Created low-budget project with ID: {project_id}")
+    
+    # Create several low-quality professionals who will submit bids below the minimum score
+    low_quality_pros = []
+    for i in range(3):
+        pro = create_test_user(
+            email=f'low_quality_pro_{i}@example.com',
+            password=TEST_PRO_PASSWORD,
+            role=UserRole.PROFESSIONAL,
+            name=f'Low Quality Pro {i}',
+            company_name=f'Low Quality Construction {i}',
+            location='Nairobi, Kenya',
+            nca_level=1,  # Very low NCA level
+            average_rating=2.0,  # Low rating
+            total_ratings=5,
+            successful_bids=1,
+            total_bids=10  # Low success rate
+        )
+        low_quality_pros.append(pro)
+    
+    # Submit low-quality bids that won't meet the minimum score
+    for i, pro in enumerate(low_quality_pros):
+        pro_login = login_user(pro.email, TEST_PRO_PASSWORD)
+        if not pro_login:
+            print(f"Failed to log in as professional {pro.email}")
+            continue
+            
+        pro_token = pro_login['access_token']
+        
+        # Submit bid with high amount (relative to budget) and poor quality
+        bid = submit_bid(
+            BASE_URL, 
+            pro_token, 
+            project_id, 
+            amount=90000 + (i * 5000),  # High amount for the budget
+            timeline_weeks=7,  # Longer than ideal
+            proposal=f'Low quality bid from {pro.name}'
+        )
+        
+        if bid:
+            print(f"Submitted low-quality bid from {pro.name}")
+    
+    # Initialize bid automation and set a high minimum score
+    bid_automation = BidAutomation()
+    bid_automation.min_winning_score = 80  # Set high to ensure no bid meets it
+    
+    # Run the evaluation
+    print("\nEvaluating bids (expecting no automatic acceptance)...")
+    with app.app_context():
+        await bid_automation.evaluate_project(project_id)
+        db.session.commit()
+    
+    # Add a small delay to ensure all async operations complete
+    await asyncio.sleep(1)
+    
+    # Verify the results
+    with app.app_context():
+        # Start a new transaction
+        db.session.rollback()
+        
+        # Get the updated project
+        project = db.session.query(Job).get(project_id)
+        if not project:
+            print("❌ Project not found after evaluation")
+            return False
+        
+        # Check that no bid was accepted
+        accepted_bid = db.session.query(Bid).filter_by(
+            job_id=project_id, 
+            status=BidStatus.ACCEPTED
+        ).first()
+        
+        if accepted_bid:
+            print(f"❌ A bid was unexpectedly accepted: {accepted_bid.id}")
+            return False
+        
+        # Check if admin received a notification
+        admin_notification = db.session.query(Notification).filter_by(
+            notification_type='admin_action_required',
+            user_id=admin.id
+        ).order_by(Notification.created_at.desc()).first()
+        
+        if not admin_notification:
+            print("❌ Admin was not notified about the need for manual review")
+            return False
+            
+        print(f"✅ Admin was notified about the need for manual review (Notification ID: {admin_notification.id})")
+        print(f"Notification content: {admin_notification.message}")
+        
+        # Now test admin's ability to manually assign the project
+        admin_login = login_user('admin_flow_admin@example.com', 'admin123')
+        if not admin_login:
+            print("❌ Failed to log in as admin")
+            return False
+            
+        # Test admin manual assignment
+        print("\nTesting admin manual assignment...")
+        
+        # Admin assigns the project to a professional
+        assigned_professional = db.session.query(User).filter(
+            User.role == UserRole.PROFESSIONAL,
+            User.id != admin.id
+        ).first()
+        
+        if not assigned_professional:
+            print("❌ No professional found for manual assignment")
+            return False
+            
+        # Update project status and assigned contractor
+        project.status = JobStatus.AWARDED
+        project.contractor_id = assigned_professional.id
+        
+        # Create a notification for the assigned professional
+        pro_notification = Notification(
+            user_id=assigned_professional.id,
+            title="Project Assigned",
+            message=f"You have been assigned to project: {project.title}",
+            notification_type="project_assigned",
+            content=json.dumps({"project_id": project.id})
+        )
+        db.session.add(pro_notification)
+        
+        # Create a notification for the customer
+        customer_notification = Notification(
+            user_id=project.customer_id,
+            title="Professional Assigned",
+            message=f"A professional has been assigned to your project: {project.title}",
+            notification_type="professional_assigned",
+            content=json.dumps({
+                "project_id": project.id,
+                "professional_id": assigned_professional.id,
+                "professional_name": assigned_professional.name
+            })
+        )
+        db.session.add(customer_notification)
+        
+        db.session.commit()
+        
+        print(f"✅ Admin manually assigned project to {assigned_professional.name}")
+        # Verify the project was updated
+        updated_project = db.session.query(Job).get(project_id)
+        if updated_project.status != JobStatus.AWARDED:
+            print(f"❌ Project status not updated to AWARDED. Current status: {updated_project.status}")
+            return False
+            
+        if updated_project.contractor_id != assigned_professional.id:
+            print(f"❌ Project not assigned to the correct professional. Expected: {assigned_professional.id}, Got: {updated_project.contractor_id}")
+            return False
+            
+        print(f"✅ Project successfully assigned to professional {assigned_professional.name} (ID: {assigned_professional.id})")
+        
+        # Verify the notification was sent to the assigned professional
+        pro_notification = db.session.query(Notification).filter_by(
+            user_id=assigned_professional.id,
+            notification_type="project_assigned"
+        ).order_by(Notification.created_at.desc()).first()
+        
+        if not pro_notification:
+            print("❌ No assignment notification sent to the professional")
+            return False
+            
+        print(f"✅ Professional was notified about the assignment (Notification ID: {pro_notification.id})")
+        
+        # Verify the customer was notified
+        customer_notification = db.session.query(Notification).filter_by(
+            user_id=customer.id,
+            notification_type="professional_assigned"
+        ).order_by(Notification.created_at.desc()).first()
+        
+        if not customer_notification:
+            print("❌ No notification sent to customer about project assignment")
+            return False
+            
+        print(f"✅ Customer was notified about project assignment (Notification ID: {customer_notification.id})")
+        
+        # For manual assignment, we don't expect any bid to be marked as accepted
+        # since we're assigning directly to a professional without accepting a specific bid
+        accepted_bid = db.session.query(Bid).filter_by(
+            job_id=project_id,
+            status=BidStatus.ACCEPTED
+        ).first()
+        
+        if accepted_bid:
+            print(f"❌ Expected no bids to be marked as accepted in manual assignment, but found bid {accepted_bid.id}")
+            return False
+            
+        print("✅ No bids were marked as accepted (expected for manual assignment)")
+        
+        print("\n✅ Admin notification and manual assignment flow test passed!")
+        return True
 
 if __name__ == "__main__":
     sys.exit(main())

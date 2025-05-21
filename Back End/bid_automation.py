@@ -261,10 +261,8 @@ class BidAutomation:
                 app.logger.exception("Full traceback:")
 
     async def notify_admin_manual_review(self, project, best_bid, best_score):
-       
         with app.app_context():
             try:
-                
                 admins = User.query.filter_by(role=UserRole.ADMIN).all()
                 
                 for admin in admins:
@@ -278,7 +276,13 @@ class BidAutomation:
                         user_id=admin.id,
                         title="Manual Review Required",
                         message=message,
-                        notification_type="admin_action_required"
+                        notification_type="admin_action_required",
+                        content=json.dumps({
+                            "project_id": project.id,
+                            "best_bid_id": best_bid.id if best_bid else None,
+                            "best_score": best_score,
+                            "action_required": "manual_review"
+                        })
                     )
                     db.session.add(notification)
                 
