@@ -18,92 +18,148 @@ class MpesaService:
     
     def init_app(self, app):
         self.app = app
+        # Load configuration from environment variables
         self.consumer_key = app.config.get('MPESA_CONSUMER_KEY')
         self.consumer_secret = app.config.get('MPESA_CONSUMER_SECRET')
         self.passkey = app.config.get('MPESA_PASSKEY')
         self.shortcode = app.config.get('MPESA_SHORTCODE')
         self.callback_url = app.config.get('MPESA_CALLBACK_URL')
         self.env = app.config.get('MPESA_ENV', 'sandbox')
+        self.transaction_type = app.config.get('MPESA_TRANSACTION_TYPE', 'CustomerPayBillOnline')
         self.auth_token = None
         self.auth_token_expiry = None
         
-        # Set base URLs based on environment
+        # Set base URLs from config or use defaults
+        self.base_api_url = app.config.get('DARAJA_BASE_API_ENDPOINT', 'https://sandbox.safaricom.co.ke/mpesa/')
+        self.base_auth_url = app.config.get('DARAJA_BASE_AUTH_ENDPOINT', 'https://sandbox.safaricom.co.ke/oauth/v1/')
+        
+        # Ensure URLs end with a slash
+        if not self.base_api_url.endswith('/'):
+            self.base_api_url += '/'
+        if not self.base_auth_url.endswith('/'):
+            self.base_auth_url += '/'
+            
+        # For backward compatibility
         if self.env == 'production':
             self.base_url = 'https://api.safaricom.co.ke'
         else:
             self.base_url = 'https://sandbox.safaricom.co.ke'
     
-    def get_auth_token(self):
-        """Get or refresh M-Pesa OAuth token"""
-        if self.auth_token and datetime.utcnow() < self.auth_token_expiry:
+    def get_auth_token(self, force_refresh=False):
+        """
+        Get or refresh M-Pesa OAuth token
+        
+        Args:
+            force_refresh (bool): If True, force a new token even if current one is valid
+            
+        Returns:
+            str: The access token
+        """
+        if not force_refresh and self.auth_token and datetime.utcnow() < self.auth_token_expiry:
             return self.auth_token
-        
-        auth = base64.b64encode(f"{self.consumer_key}:{self.consumer_secret}".encode()).decode()
-        headers = {'Authorization': f'Basic {auth}'}
-        
+            
         try:
-            response = requests.get(
-                f"{self.base_url}/oauth/v1/generate?grant_type=client_credentials",
-                headers=headers
-            )
+            # Use the provided auth endpoints
+            auth_url = f"{self.base_auth_url}generate?grant_type=client_credentials"
+            auth = base64.b64encode(f"{self.consumer_key}:{self.consumer_secret}".encode()).decode()
+            headers = {
+                'Authorization': f'Basic {auth}',
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.get(auth_url, headers=headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
-            self.auth_token = data['access_token']
+            self.auth_token = data.get('access_token')
+            expires_in = int(data.get('expires_in', 3599))  # Default to 1 hour if not provided
+            
             # Set expiry 5 minutes before actual expiry to be safe
-            self.auth_token_expiry = datetime.utcnow() + timedelta(seconds=data['expires_in'] - 300)
+            self.auth_token_expiry = datetime.utcnow() + timedelta(seconds=expires_in - 300)
+            
+            current_app.logger.info("Successfully obtained M-Pesa access token")
             return self.auth_token
             
         except requests.exceptions.RequestException as e:
-            current_app.logger.error(f"Failed to get M-Pesa auth token: {str(e)}")
+            error_msg = f"Failed to get M-Pesa auth token: {str(e)}"
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg += f" - Response: {e.response.text}"
+            current_app.error(error_msg)
             raise Exception("Failed to authenticate with M-Pesa service")
     
-    def initiate_stk_push(self, phone, amount, account_reference, description):
-        """Initiate STK push to customer's phone"""
+    def initiate_stk_push(self, phone, amount, account_reference, description, callback_url=None):
+        """
+        Initiate STK push to customer's phone
+        
+        Args:
+            phone (str): Customer's phone number (format: 2547XXXXXXXX)
+            amount (float): Amount to charge
+            account_reference (str): Reference for the transaction
+            description (str): Description of the transaction
+            callback_url (str, optional): Override default callback URL
+            
+        Returns:
+            dict: Response from M-Pesa API
+        """
         try:
+            # Get authentication token
             token = self.get_auth_token()
+            
+            # Generate timestamp and password
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
             password = base64.b64encode(
                 f"{self.shortcode}{self.passkey}{timestamp}".encode()
             ).decode()
             
+            # Prepare headers
             headers = {
                 'Authorization': f'Bearer {token}',
                 'Content-Type': 'application/json'
             }
             
             # Format phone number (strip + and leading 0 if present)
-            phone = phone.lstrip('+').lstrip('0')
+            phone = str(phone).lstrip('+').lstrip('0')
             if not phone.startswith('254'):
-                phone = f'254{phone}'
+                phone = f'254{phone[-9:]}'  # Ensure it's a Kenyan number
             
+            # Prepare payload
             payload = {
                 'BusinessShortCode': self.shortcode,
                 'Password': password,
                 'Timestamp': timestamp,
-                'TransactionType': 'CustomerPayBillOnline',
-                'Amount': amount,
+                'TransactionType': self.transaction_type,
+                'Amount': int(amount),  # Ensure amount is an integer
                 'PartyA': phone,
                 'PartyB': self.shortcode,
                 'PhoneNumber': phone,
-                'CallBackURL': self.callback_url,
+                'CallBackURL': callback_url or self.callback_url,
                 'AccountReference': account_reference[:12],  # Max 12 chars
                 'TransactionDesc': description[:13]  # Max 13 chars
             }
             
+            # Log the request
+            current_app.logger.info(f"Initiating STK push with payload: {payload}")
+            
+            # Make the request
             response = requests.post(
-                f"{self.base_url}/mpesa/stkpush/v1/processrequest",
+                f"{self.base_api_url}stkpush/v1/processrequest",
                 headers=headers,
-                json=payload
+                json=payload,
+                timeout=30
             )
             response.raise_for_status()
             
-            return response.json()
+            # Log successful response
+            response_data = response.json()
+            current_app.logger.info(f"STK push initiated successfully: {response_data}")
+            
+            return response_data
             
         except requests.exceptions.RequestException as e:
-            current_app.logger.error(f"STK push failed: {str(e)}")
+            error_msg = f"STK push failed: {str(e)}"
             if hasattr(e, 'response') and e.response is not None:
-                current_app.logger.error(f"Response: {e.response.text}")
+                error_msg += f" - Response: {e.response.text}"
+            current_app.logger.error(error_msg)
             raise Exception("Failed to initiate M-Pesa payment")
     
     def validate_webhook_signature(self, request_data, signature):
