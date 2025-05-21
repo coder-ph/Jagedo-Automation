@@ -218,7 +218,7 @@ class BidAutomation:
                 db.session.refresh(fresh_bid)
                 db.session.refresh(project)
                 
-                log_msg = f"✅ Successfully accepted bid {fresh_bid.id} (${fresh_bid.amount}) for project {project.id} with score {score}"
+                log_msg = f" Successfully accepted bid {fresh_bid.id} (${fresh_bid.amount}) for project {project.id} with score {score}"
                 app.logger.info(log_msg)
                 print(log_msg)
                 print(f"Bid status after commit: {fresh_bid.status}")
@@ -229,7 +229,7 @@ class BidAutomation:
                 
             except Exception as e:
                 db.session.rollback()
-                error_msg = f"❌ Error accepting bid {bid.id}: {str(e)}"
+                error_msg = f" Error accepting bid {bid.id}: {str(e)}"
                 app.logger.error(error_msg)
                 app.logger.exception("Full traceback:")
                 print(error_msg)

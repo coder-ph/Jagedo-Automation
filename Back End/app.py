@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime, timedelta
-from models import db, User, UserRole, BidStatus, JobStatus, Message, Attachment, Job, Bid, Notification
+from models import db, User, UserRole, BidStatus, JobStatus, Message, Attachment, Job, Bid, Notification, BidTeamMember
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
@@ -72,6 +72,10 @@ migrate = Migrate(app, db)
 CORS(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
+# Register blueprints
+from routes.bid_routes import bp as bid_routes_bp
+app.register_blueprint(bid_routes_bp, url_prefix='')
 
 # Constants
 UPLOAD_FOLDER = 'uploads'
@@ -574,7 +578,7 @@ def professional_dashboard():
 async def submit_bid(project_id):
     try:
         data = validate_json()
-        required_fields = ['amount', 'proposal', 'timeline_weeks']
+        required_fields = ['amount', 'proposal', 'timeline_weeks', 'team_members']
         validate_required_fields(data, required_fields)
         
         project = Job.query.get_or_404(project_id)
@@ -596,7 +600,7 @@ async def submit_bid(project_id):
     
         # Check for existing bid from this professional
         existing_bid = Bid.query.filter_by(
-            job_id=project_id,  # Use job_id instead of project_id
+            job_id=project_id,
             professional_id=contractor.id
         ).first()
         
@@ -609,20 +613,49 @@ async def submit_bid(project_id):
         # Calculate location match score
         location_score, match_type = location_match_score(project.location, contractor.location)
         
-        # Create bid
-        bid = Bid(
-            job_id=project_id,  # Use job_id instead of project_id
-            professional_id=contractor.id,
-            amount=float(data['amount']),
-            proposal=data['proposal'],
-            timeline_weeks=int(data['timeline_weeks']),
-            location_score=location_score,
-            location_match_type=match_type,
-            status=BidStatus.PENDING
-        )
+        # Start a transaction
+        db.session.begin_nested()
         
-        db.session.add(bid)
-        db.session.commit()
+        try:
+            # Create bid
+            bid = Bid(
+                job_id=project_id,
+                professional_id=contractor.id,
+                amount=float(data['amount']),
+                proposal=data['proposal'],
+                timeline_weeks=int(data['timeline_weeks']),
+                location_score=location_score,
+                location_match_type=match_type,
+                status=BidStatus.PENDING
+            )
+            
+            db.session.add(bid)
+            db.session.flush()  # Get the bid ID without committing
+            
+            # Add team members
+            for member_data in data['team_members']:
+                team_member = BidTeamMember(
+                    bid_id=bid.id,
+                    email=member_data['email'].lower().strip(),
+                    name=member_data['name'],
+                    role=member_data['role'],
+                    hourly_rate=float(member_data['hourly_rate']),
+                    hours=float(member_data['hours']),
+                    total_cost=float(member_data['hourly_rate']) * float(member_data['hours'])
+                )
+                db.session.add(team_member)
+            
+            # Commit the transaction
+            db.session.commit()
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error creating bid with team members: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Failed to create bid with team members',
+                'error': str(e)
+            }), 500
       
         # Initialize bid automation and process the new bid
         from bid_automation import BidAutomation
@@ -637,13 +670,35 @@ async def submit_bid(project_id):
             "new_bid"
         )
         
+        # Get the bid with team members for the response
+        bid_data = {
+            'id': bid.id,
+            'amount': float(bid.amount) if bid.amount else None,
+            'proposal': bid.proposal,
+            'timeline_weeks': bid.timeline_weeks,
+            'status': bid.status.value,
+            'created_at': bid.created_at.isoformat() if bid.created_at else None,
+            'location_score': bid.location_score,
+            'location_match_type': bid.location_match_type,
+            'team_members': [{
+                'id': m.id,
+                'email': m.email,
+                'name': m.name,
+                'role': m.role,
+                'hourly_rate': float(m.hourly_rate) if m.hourly_rate else None,
+                'hours': m.hours,
+                'total_cost': float(m.total_cost) if m.total_cost else None
+            } for m in bid.team_members]
+        }
+        
         return jsonify({
             'success': True,
             'message': 'Bid submitted successfully',
             'data': {
                 'bid_id': bid.id,
                 'location_score': location_score,
-                'match_type': match_type
+                'match_type': match_type,
+                'team_members_count': len(bid.team_members)
             }
         })
             
@@ -698,17 +753,42 @@ def get_project_bids(project_id):
                         'id': bid.professional_rel.id,
                         'name': bid.professional_rel.name,
                         'email': bid.professional_rel.email
-                    }
+                    },
+                    'team_members': [{
+                        'id': m.id,
+                        'email': m.email,
+                        'name': m.name,
+                        'role': m.role,
+                        'hourly_rate': float(m.hourly_rate) if m.hourly_rate else None,
+                        'hours': m.hours,
+                        'total_cost': float(m.total_cost) if m.total_cost else None
+                    } for m in bid.team_members]
                 } for bid in bids]
             })
             
         # Admin and project owner can see all bids
         if can_view_all:
-            bids = Bid.query.filter_by(job_id=project_id).all()
-            return jsonify({
-                'success': True,
-                'data': [{
+            bids = Bid.query.filter_by(job_id=project_id).options(
+                db.joinedload(Bid.professional),
+                db.joinedload(Bid.team_members)
+            ).all()
+            
+            bids_with_scores = []
+            for bid in bids:
+                bid_data = {
                     'id': bid.id,
+                    'professional_id': bid.professional_id,
+                    'professional': {
+                        'id': bid.professional.id,
+                        'name': f"{bid.professional.first_name} {bid.professional.last_name}",
+                        'email': bid.professional.email,
+                        'company_name': bid.professional.company_name,
+                        'phone': bid.professional.phone,
+                        'rating': getattr(bid.professional, 'average_rating', None),
+                        'success_rate': (bid.professional.successful_bids / bid.professional.total_bids * 100) 
+                                      if hasattr(bid.professional, 'total_bids') and getattr(bid.professional, 'total_bids', 0) > 0 
+                                      else 0
+                    },
                     'amount': float(bid.amount) if bid.amount else None,
                     'proposal': bid.proposal,
                     'timeline_weeks': bid.timeline_weeks,
@@ -716,17 +796,21 @@ def get_project_bids(project_id):
                     'created_at': bid.created_at.isoformat() if bid.created_at else None,
                     'location_score': bid.location_score,
                     'location_match_type': bid.location_match_type,
-                    'professional': {
-                        'id': bid.professional_rel.id,
-                        'name': bid.professional_rel.name,
-                        'email': bid.professional_rel.email,
-                        'phone': getattr(bid.professional_rel, 'phone', None),
-                        'rating': getattr(bid.professional_rel, 'average_rating', None),
-                        'success_rate': (bid.professional_rel.successful_bids / bid.professional_rel.total_bids * 100) 
-                                      if hasattr(bid.professional_rel, 'total_bids') and getattr(bid.professional_rel, 'total_bids', 0) > 0 
-                                      else 0
-                    }
-                } for bid in bids]
+                    'team_members': [{
+                        'id': m.id,
+                        'email': m.email,
+                        'name': m.name,
+                        'role': m.role,
+                        'hourly_rate': float(m.hourly_rate) if m.hourly_rate else None,
+                        'hours': m.hours,
+                        'total_cost': float(m.total_cost) if m.total_cost else None
+                    } for m in bid.team_members]
+                }
+                bids_with_scores.append(bid_data)
+            
+            return jsonify({
+                'success': True,
+                'data': bids_with_scores
             })
             
         return jsonify({

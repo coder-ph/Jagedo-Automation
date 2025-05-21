@@ -111,6 +111,7 @@ class Bid(db.Model):
                                    foreign_keys='Attachment.bid_id',
                                    back_populates='bid',
                                    lazy=True)
+    team_members = db.relationship('BidTeamMember', back_populates='bid', cascade='all, delete-orphan')
     
     __table_args__ = (
         db.UniqueConstraint('job_id', 'professional_id', name='uq_job_professional'),
@@ -181,6 +182,34 @@ class Attachment(db.Model):
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('user_attachments', lazy=True))
     job = db.relationship('Job', foreign_keys=[job_id], back_populates='job_documents')
     bid = db.relationship('Bid', foreign_keys=[bid_id], back_populates='bid_attachments')
+
+class BidTeamMember(db.Model):
+    __tablename__ = 'bid_team_members'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    bid_id = db.Column(db.Integer, db.ForeignKey('bids.id', ondelete='CASCADE'), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(255), nullable=False)
+    hourly_rate = db.Column(db.Numeric(10, 2), nullable=False)
+    hours = db.Column(db.Float, nullable=False)
+    total_cost = db.Column(db.Numeric(10, 2), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    bid = db.relationship('Bid', back_populates='team_members')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'email': self.email,
+            'name': self.name,
+            'role': self.role,
+            'hourly_rate': float(self.hourly_rate) if self.hourly_rate else None,
+            'hours': self.hours,
+            'total_cost': float(self.total_cost) if self.total_cost else None
+        }
+
 
 class Notification(db.Model):
     __tablename__ = 'notifications'
