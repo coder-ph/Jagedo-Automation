@@ -100,6 +100,10 @@ const CustomerServiceRequest = () => {
     setActiveSection(activeSection === section ? null : section);
   };
 
+  const goToDashboard = () => {
+    navigate('/customer-dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-16">
       <ToastContainer 
@@ -116,12 +120,22 @@ const CustomerServiceRequest = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white shadow-xl rounded-xl overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-            <h2 className="text-2xl sm:text-3xl font-bold">
-              Create Service Request
-            </h2>
-            <p className="mt-2 opacity-90">
-              Fill in the details below and we'll connect you with the right service provider
-            </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold">
+                  Create Service Request
+                </h2>
+                <p className="mt-2 opacity-90">
+                  Fill in the details below and we'll connect you with the right service provider
+                </p>
+              </div>
+              <button
+                onClick={goToDashboard}
+                className="px-4 py-2 bg-white text-indigo-600 rounded-md font-medium hover:bg-gray-100 transition-colors"
+              >
+                Go to Dashboard
+              </button>
+            </div>
           </div>
 
           <div className="p-6">
@@ -631,10 +645,17 @@ const CustomerServiceRequest = () => {
                 </div>
               </div>
 
-              <div className="pt-4">
+              <div className="pt-4 flex justify-between">
+                <button
+                  type="button"
+                  onClick={goToDashboard}
+                  className="px-6 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Skip to Dashboard
+                </button>
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Submit Service Request
                 </button>
