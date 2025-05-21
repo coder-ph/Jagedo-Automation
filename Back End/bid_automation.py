@@ -18,12 +18,12 @@ class BidAutomation:
     def handle_new_bid(self, bid_id):
         with app.app_context():
             try:
-                bid = Bid.query.get(bid_id)
+                bid = db.session.get(Bid, bid_id)
                 if not bid:
                     app.logger.error(f"Bid {bid_id} not found")
                     return
 
-                project = Job.query.get(bid.job_id)
+                project = db.session.get(Job, bid.job_id)
                 if not project:
                     app.logger.error(f"Project {bid.job_id} not found for bid {bid_id}")
                     return

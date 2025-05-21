@@ -152,7 +152,7 @@ class TestBidWithTeam(unittest.TestCase):
                          f"Expected 2 team members. Response: {response_data}")
         
         # Verify the bid was created with team members
-        bid = Bid.query.filter_by(id=response_data['data']['bid_id']).first()
+        bid = db.session.get(Bid, response_data['data']['bid_id'])
         self.assertIsNotNone(bid)
         self.assertEqual(len(bid.team_members), 2)
         

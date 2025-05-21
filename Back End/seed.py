@@ -275,7 +275,7 @@ def create_attachments(num_attachments=30):
             # If attaching to a bid, get the associated job and user
             if bid:
                 job = Job.query.get(bid.job_id)
-                user = User.query.get(bid.professional_id)
+                user = db.session.get(User, bid.professional_id)
             elif job:
                 user = random.choice(users)
             else:

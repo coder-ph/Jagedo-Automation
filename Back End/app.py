@@ -125,13 +125,13 @@ class NotificationService:
             db.session.commit()
             
             # Send email notification if user has email
-            user = User.query.get(user_id)
+            user = db.session.get(User, user_id)
             if user and user.email:
                 NotificationService._send_email(user.email, title, message)
                 
-            # Send SMS if user has phone
-            if user and user.phone:
-                NotificationService._send_sms(user.phone, f"{title}: {message}")
+                # Send SMS if user has phone
+                if user.phone:
+                    NotificationService._send_sms(user.phone, f"{title}: {message}")
                 
             return True
             
@@ -191,7 +191,7 @@ class AccessControl:
 
 def get_current_user():
     current_user_id = get_jwt_identity()
-    return User.query.get(int(current_user_id))
+    return db.session.get(User, int(current_user_id))
 
 
 def validate_email(email):
@@ -528,7 +528,7 @@ def select_winner(project_id):
 @jwt_required()
 def get_profile():
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     
     if not user:
         return jsonify({
@@ -581,7 +581,9 @@ def submit_bid(project_id):
         required_fields = ['amount', 'proposal', 'timeline_weeks', 'team_members']
         validate_required_fields(data, required_fields)
         
-        project = Job.query.get_or_404(project_id)
+        project = db.session.get(Job, project_id)
+        if not project:
+            abort(404, description="Project not found")
         contractor = get_current_user()
     
         # Check if project is open for bidding
@@ -728,7 +730,13 @@ def submit_bid(project_id):
 @jwt_required()
 def get_project_bids(project_id):
     try:
-        project = Job.query.get_or_404(project_id)
+        project = db.session.get(Job, project_id)
+        if not project:
+            return jsonify({
+                'success': False,
+                'error': 'Project not found',
+                'message': 'The requested project does not exist.'
+            }), 404
         current_user = get_current_user()
         
         # Check if user has permission to view bids
@@ -1013,7 +1021,7 @@ def get_project(project_id):
                                 app.logger.error(f"[GET /api/projects/{project_id}] Error processing bid document {getattr(doc, 'id', 'unknown')}: {str(doc_e)}")
                     
                     # Include professional details with the bid
-                    professional = User.query.get(bid.professional_id)
+                    professional = db.session.get(User, bid.professional_id)
                     professional_data = None
                     if professional:
                         professional_data = {
@@ -1141,7 +1149,7 @@ def create_project():
 def has_document_access(user_id, attachment):
     """Check if a user has access to a document"""
     try:
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return False, "User not found"
             
@@ -1493,7 +1501,7 @@ def notify_document_upload(attachment):
     """Notify relevant users about a new document upload"""
     try:
         project = Job.query.get(attachment.job_id)
-        uploader = User.query.get(attachment.uploaded_by)
+        uploader = db.session.get(User, attachment.uploaded_by)
         
         if not project:
             app.logger.error(f"Project not found for attachment {attachment.id}")
@@ -1776,7 +1784,7 @@ def send_notification(user_id, title, message, notification_type):
     db.session.commit()
     
     # Optionally send email/SMS
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user and hasattr(user, 'email') and user.email:
         send_email(user.email, title, message)
     if user and hasattr(user, 'phone') and user.phone:

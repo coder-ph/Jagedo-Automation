@@ -1,23 +1,23 @@
 import pytest
 import time
+import os
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from models import db, User, Job, Bid, JobStatus, BidStatus, UserRole
 from bid_automation import BidAutomation
-from app import create_app
+from app import app
 
 # Test configuration
-TEST_CONFIG = {
-    'TESTING': True,
-    'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-    'SQLALCHEMY_TRACK_MODIFICATIONS': False,
-    'SECRET_KEY': 'test-secret-key'
-}
+class TestConfig:
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = 'test-secret-key'
 
 @pytest.fixture
 def app():
     """Create and configure a new app instance for each test."""
-    app = create_app(TEST_CONFIG)
+    app.config.from_object(TestConfig)
     
     with app.app_context():
         db.create_all()

@@ -270,7 +270,7 @@ def create_test_project(token, title="Test Project", with_document=False):
         print(f"Unexpected error in create_test_project: {str(e)}")
         return None
 
-def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensive experience in construction projects similar to this one. My team and I can complete the work within the specified timeline and budget.', timeline_weeks=12):
+def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensive experience in construction projects similar to this one. My team and I can complete the work within the specified timeline and budget.', timeline_weeks=12, team_members=None):
     url = f"{base_url}/api/projects/{job_id}/bids"
     headers = {
         'Authorization': f'Bearer {token}',
@@ -283,6 +283,9 @@ def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensi
         'proposal': proposal,
         'timeline_weeks': timeline_weeks
     }
+    
+    if team_members is not None:
+        bid_data['team_members'] = team_members
     
     print(f"\nSubmitting bid with data: {json.dumps(bid_data, indent=2)}")
     
@@ -786,7 +789,7 @@ async def test_bidding_workflow_async():
         print("Verified notifications were sent to both customer and winning contractor")
         
         # Verify document access
-        winning_pro = User.query.get(accepted_bid.professional_id)
+        winning_pro = db.session.get(User, accepted_bid.professional_id)
         winning_pro_login = login_user(winning_pro.email, TEST_PRO_PASSWORD)
         if not winning_pro_login:
             print("Failed to log in as winning professional")
@@ -821,8 +824,92 @@ async def test_bidding_workflow_async():
                 pass  # Expected to fail
         
         print("Verified losing professionals cannot access project documents")
+        
+    # Test bidding with team members
+    print("\n=== Testing Bidding with Team Members ===")
     
-    print("\nAll bidding workflow tests passed!")
+    # Create a new project for team bidding test
+    team_project = create_test_project(
+        customer_token, 
+        title="Team Project",
+        with_document=False
+    )
+    if not team_project:
+        print("Failed to create team project")
+        return False
+        
+    team_project_id = team_project['id']
+    print(f"Created team project with ID: {team_project_id}")
+    
+    # Define team members
+    team_members = [
+        {
+            'email': 'john.doe@example.com',
+            'name': 'John Doe',
+            'role': 'Lead Developer',
+            'hourly_rate': 50,
+            'hours': 40
+        },
+        {
+            'email': 'jane.smith@example.com',
+            'name': 'Jane Smith',
+            'role': 'Senior Developer',
+            'hourly_rate': 45,
+            'hours': 35
+        }
+    ]
+    
+    # Submit a bid with team members
+    print("\nSubmitting bid with team members...")
+    bid_result = submit_bid(
+        BASE_URL,
+        winning_pro_token,
+        team_project_id,
+        amount=5000000,
+        proposal='This bid includes a full team of experienced professionals.',
+        timeline_weeks=10,
+        team_members=team_members
+    )
+    
+    if not bid_result or not bid_result.get('success'):
+        print("Failed to submit bid with team members")
+        return False
+        
+    print("Successfully submitted bid with team members")
+    
+    # Verify the bid was created with team members
+    bids = get_project_bids(team_project_id, customer_token)
+    if not bids or not bids.get('success') or not bids.get('data'):
+        print("Failed to retrieve bids for team project")
+        return False
+        
+    team_bid = None
+    for bid in bids['data']:
+        if 'team_members' in bid and len(bid['team_members']) > 0:
+            team_bid = bid
+            break
+            
+    if not team_bid:
+        print("No bid with team members found")
+        return False
+        
+    print(f"Found bid with {len(team_bid['team_members'])} team members")
+    
+    # Verify team member details
+    for i, member in enumerate(team_members):
+        if i >= len(team_bid['team_members']):
+            print(f"Missing team member at index {i}")
+            return False
+            
+        bid_member = team_bid['team_members'][i]
+        for key in ['name', 'email', 'role']:
+            if bid_member[key] != member[key]:
+                print(f"Mismatch in team member {i} {key}: expected {member[key]}, got {bid_member[key]}")
+                return False
+    
+    print("Verified all team member details")
+    
+    print("\nAll bidding workflow tests passed, including team bidding!")
     return True
 
 def main():
