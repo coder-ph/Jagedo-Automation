@@ -13,6 +13,7 @@ class JobStatus(str, Enum):
     OPEN = 'open'
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
+    AWARDED = 'awarded'
 
 class BidStatus(str, Enum):
     PENDING = 'pending'

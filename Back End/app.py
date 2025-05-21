@@ -267,26 +267,30 @@ def location_match_score(client_location, contractor_location):
     return 0.0, 'no_match'
 
 def calculate_bid_score(bid):
-    
-    contractor = bid.contractor
-    nca_score = (contractor.nca_level / 8) * 40
-    rating_score = (contractor.average_rating / 5) * 25 if contractor.average_rating else 0
+    # Use the professional relationship instead of contractor
+    professional = bid.professional
+    nca_score = (professional.nca_level / 8) * 40
+    rating_score = (professional.average_rating / 5) * 25 if professional.average_rating else 0
     success_rate = 0
-    if contractor.total_bids > 0:
-        success_rate = (contractor.successful_bids / contractor.total_bids) * 100
+    if professional.total_bids > 0:
+        success_rate = (professional.successful_bids / professional.total_bids) * 100
     success_score = (success_rate / 100) * 15
     location_score = (bid.location_score or 0) * 20
     total_score = nca_score + rating_score + success_score + location_score
     return max(0, min(100, total_score))
 
 def select_winning_bid(project_id):
-
+    """
+    Select the winning bid for a project based on the highest score
+    Returns: (winning_bid, score) or (None, None) if no valid bids
+    """
     project = Job.query.get(project_id)
     if not project or project.status != JobStatus.OPEN:
         return None, None
     
+    # Get all pending bids for the job
     bids = Bid.query.filter_by(
-        project_id=project_id,
+        job_id=project_id,  # Changed from project_id to job_id
         status=BidStatus.PENDING
     ).all()
     
@@ -298,6 +302,7 @@ def select_winning_bid(project_id):
     for bid in bids:
         score = calculate_bid_score(bid)
         scored_bids.append((bid, score))
+        print(f"Bid ID: {bid.id}, Professional: {bid.professional_id}, Score: {score:.2f}")
     
     # Sort by score (descending)
     scored_bids.sort(key=lambda x: x[1], reverse=True)
@@ -415,14 +420,15 @@ def select_winner(project_id):
         project.status = JobStatus.AWARDED
         winning_bid.status = BidStatus.ACCEPTED
     
-        contractor = winning_bid.contractor
-        contractor.total_bids += 1
-        contractor.successful_bids += 1
+        # Use the professional relationship which is defined in the Bid model
+        professional = winning_bid.professional
+        professional.total_bids += 1
+        professional.successful_bids += 1
        
-        if contractor.total_bids > 0:
-            contractor.average_rating = (
-                (contractor.average_rating * (contractor.total_bids - 1) + winning_score) 
-                / contractor.total_bids
+        if professional.total_bids > 0:
+            professional.average_rating = (
+                (professional.average_rating * (professional.total_bids - 1) + winning_score) 
+                / professional.total_bids
             )
         
         db.session.commit()
@@ -1061,7 +1067,6 @@ def notify_document_upload(document):
 @app.route('/api/projects/<int:project_id>/bid-scores', methods=['GET'])
 @jwt_required()
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
-
 def get_bid_scores(project_id):
     """Get detailed scoring information for all bids on a project"""
     project = Job.query.get_or_404(project_id)
@@ -1071,20 +1076,23 @@ def get_bid_scores(project_id):
     if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    bids = Bid.query.filter_by(project_id=project_id).all()
+    # Use job_id instead of project_id to match the database schema
+    bids = Bid.query.filter_by(job_id=project_id).all()
     
     result = []
     for bid in bids:
         score = calculate_bid_score(bid)
+        # Use the professional relationship which is defined in the Bid model
+        professional = bid.professional
         result.append({
             'bid_id': bid.id,
-            'contractor_id': bid.professional_id,
-            'contractor_name': f"{bid.contractor.first_name} {bid.contractor.last_name}",
-            'company': bid.contractor.company_name,
+            'contractor_id': professional.id,
+            'contractor_name': f"{professional.name}",  # Using name field since first_name/last_name don't exist in the model
+            'company': professional.company_name,
             'amount': float(bid.amount),
-            'nca_level': bid.contractor.nca_level,
-            'rating': bid.contractor.average_rating,
-            'success_rate': (bid.contractor.successful_bids / bid.contractor.total_bids * 100) if bid.contractor.total_bids > 0 else 0,
+            'nca_level': professional.nca_level,
+            'rating': professional.average_rating,
+            'success_rate': (professional.successful_bids / professional.total_bids * 100) if professional.total_bids > 0 else 0,
             'location_score': bid.location_score,
             'location_match_type': bid.location_match_type,
             'total_score': score,
@@ -1103,22 +1111,35 @@ def get_bid_scores(project_id):
 
 def notify_bid_accepted(bid):
     """Notify contractor that their bid was accepted"""
+    message = f"Your bid for project {bid.job.title} has been accepted!"
     send_notification(
-        bid.contractor_id,
+        bid.professional_id,  # Use professional_id instead of contractor_id
         "Bid Accepted",
-        f"Your bid for project {bid.project.title} has been accepted!",
+        message,
         "bid_accepted"
     )
     
-    db.session.commit()    
+    # Also update the notification content in the database
+    notification = Notification.query.filter_by(
+        user_id=bid.professional_id,
+        title="Bid Accepted",
+        message=message
+    ).order_by(Notification.created_at.desc()).first()
+    
+    if notification:
+        notification.content = message
+        db.session.commit()
     
 # Notification system
 def send_notification(user_id, title, message, notification_type):
+    # Use the message as the content if not provided
+    content = message
     notification = Notification(
         user_id=user_id,
         title=title,
         message=message,
-        type=notification_type,
+        content=content,  # Set content to the same as message
+        notification_type=notification_type,
         read=False
     )
     db.session.add(notification)
@@ -1126,9 +1147,9 @@ def send_notification(user_id, title, message, notification_type):
     
     # Optionally send email/SMS
     user = User.query.get(user_id)
-    if user.email:
+    if user and hasattr(user, 'email') and user.email:
         send_email(user.email, title, message)
-    if user.phone:
+    if user and hasattr(user, 'phone') and user.phone:
         send_sms(user.phone, f"{title}: {message}")
 
 def notify_status_change(project, old_status, new_status):
