@@ -575,7 +575,7 @@ def professional_dashboard():
 @app.route('/api/projects/<int:project_id>/bids', methods=['POST'])
 @jwt_required()
 @role_required([UserRole.PROFESSIONAL])
-async def submit_bid(project_id):
+def submit_bid(project_id):
     try:
         data = validate_json()
         required_fields = ['amount', 'proposal', 'timeline_weeks', 'team_members']
@@ -660,7 +660,7 @@ async def submit_bid(project_id):
         # Initialize bid automation and process the new bid
         from bid_automation import BidAutomation
         bid_automation = BidAutomation()
-        await bid_automation.handle_new_bid(bid.id)
+        bid_automation.handle_new_bid(bid.id)
         
         # Notify project owner about the new bid
         send_notification(
@@ -780,10 +780,10 @@ def get_project_bids(project_id):
                     'professional_id': bid.professional_id,
                     'professional': {
                         'id': bid.professional.id,
-                        'name': f"{bid.professional.first_name} {bid.professional.last_name}",
+                        'name': bid.professional.name,
                         'email': bid.professional.email,
-                        'company_name': bid.professional.company_name,
-                        'phone': bid.professional.phone,
+                        'company_name': getattr(bid.professional, 'company_name', None),
+                        'phone': getattr(bid.professional, 'phone', None),
                         'rating': getattr(bid.professional, 'average_rating', None),
                         'success_rate': (bid.professional.successful_bids / bid.professional.total_bids * 100) 
                                       if hasattr(bid.professional, 'total_bids') and getattr(bid.professional, 'total_bids', 0) > 0 

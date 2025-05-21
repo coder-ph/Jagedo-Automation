@@ -15,8 +15,7 @@ class BidAutomation:
         self.evaluation_period = timedelta(hours=evaluation_period_hours)
         self.min_winning_score = 60  
 
-    async def handle_new_bid(self, bid_id):
-        
+    def handle_new_bid(self, bid_id):
         with app.app_context():
             try:
                 bid = Bid.query.get(bid_id)
@@ -31,12 +30,11 @@ class BidAutomation:
                 
                 if len(project.bids) == 1:
                     app.logger.info(f"First bid received for project {project.id}, scheduling evaluation")
-                    
                     self.schedule_evaluation(project.id)
                 
-
                 if len(project.bids) >= self.min_bids:
-                    await self.evaluate_project(project.id)
+                    # Evaluate project synchronously
+                    self.evaluate_project(project.id)
 
             except Exception as e:
                 app.logger.error(f"Error in handle_new_bid: {str(e)}")
