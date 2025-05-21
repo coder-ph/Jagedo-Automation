@@ -3,10 +3,10 @@ import json
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+
 load_dotenv()
 
-# Base URL for the API
+
 BASE_URL = 'http://localhost:5001/api'
 
 def login(email, password):
@@ -22,13 +22,13 @@ def login(email, password):
         return None
 
 def select_winning_bid(job_id, token):
-    """Select the winning bid for a job"""
+    
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
     }
     
-    # First, get the bid scores to see the ranking
+
     response = requests.get(
         f"{BASE_URL}/projects/{job_id}/bid-scores",
         headers=headers
@@ -42,7 +42,6 @@ def select_winning_bid(job_id, token):
     print("\n=== Bid Scores ===")
     print(json.dumps(bid_scores, indent=2))
     
-    # Now select the winning bid
     response = requests.post(
         f"{BASE_URL}/projects/{job_id}/select-winner",
         headers=headers,
@@ -61,14 +60,14 @@ def select_winning_bid(job_id, token):
 if __name__ == "__main__":
     import sys
     
-    # Check if job ID is provided as command line argument
+   
     if len(sys.argv) != 2:
         print("Usage: python test_bid_selection.py <job_id>")
         sys.exit(1)
         
     job_id = sys.argv[1]
     
-    # Get admin credentials from environment variables
+    
     admin_email = os.getenv('ADMIN_EMAIL')
     admin_password = os.getenv('ADMIN_PASSWORD')
     
@@ -76,7 +75,6 @@ if __name__ == "__main__":
         print("Please set ADMIN_EMAIL and ADMIN_PASSWORD in .env file")
         sys.exit(1)
     
-    # Login as admin
     print(f"Logging in as {admin_email}...")
     token = login(admin_email, admin_password)
     if not token:
@@ -84,5 +82,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     print(f"\nSelecting winning bid for job ID: {job_id}")
-    # Select winning bid
     select_winning_bid(job_id, token)

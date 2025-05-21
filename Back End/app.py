@@ -269,14 +269,27 @@ def location_match_score(client_location, contractor_location):
 def calculate_bid_score(bid):
     # Use the professional relationship instead of contractor
     professional = bid.professional
+    
+    # NCA Level: 40 points max (1-8 scale)
     nca_score = (professional.nca_level / 8) * 40
-    rating_score = (professional.average_rating / 5) * 25 if professional.average_rating else 0
+    
+    # Rating: 25 points max (0-5 scale)
+    # The rating is already on a 5-point scale, so we just multiply by 5 to get to 25 points
+    rating_score = (professional.average_rating * 5) if professional.average_rating is not None else 0
+    
+    # Success Rate: 15 points max (based on successful_bids / total_bids)
     success_rate = 0
     if professional.total_bids > 0:
         success_rate = (professional.successful_bids / professional.total_bids) * 100
     success_score = (success_rate / 100) * 15
+    
+    # Location Score: 20 points max (0-1 scale)
     location_score = (bid.location_score or 0) * 20
+    
+    # Calculate total score (max 100 points)
     total_score = nca_score + rating_score + success_score + location_score
+    
+    # Ensure score is between 0 and 100
     return max(0, min(100, total_score))
 
 def select_winning_bid(project_id):
@@ -1130,6 +1143,16 @@ def notify_bid_accepted(bid):
         notification.content = message
         db.session.commit()
     
+# Mock email function for testing
+def send_email(to, subject, body):
+    print(f"[MOCK] Email sent to {to} with subject '{subject}' and body: {body}")
+    return True
+
+# Mock SMS function for testing
+def send_sms(to, message):
+    print(f"[MOCK] SMS sent to {to}: {message}")
+    return True
+
 # Notification system
 def send_notification(user_id, title, message, notification_type):
     # Use the message as the content if not provided
