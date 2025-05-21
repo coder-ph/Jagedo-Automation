@@ -411,42 +411,67 @@ def select_winner(project_id):
     try:
         project = Job.query.get_or_404(project_id)
         current_user = get_current_user()
-  
+        
+        # Verify the current user is the project owner or admin
         if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
-            return jsonify({'error': 'Unauthorized'}), 403
-   
-        if project.status != JobStatus.OPEN:
             return jsonify({
                 'success': False,
-                'error': 'Project is not open for bidding'
+                'message': 'Only the project owner can select a winner'
+            }), 403
+            
+        # Check if a winner has already been selected
+        if project.status == JobStatus.AWARDED:
+            return jsonify({
+                'success': False,
+                'message': 'A winner has already been selected for this project'
             }), 400
-    
+            
+        # Find the winning bid (highest score)
         winning_bid, winning_score = select_winning_bid(project_id)
         
         if not winning_bid:
             return jsonify({
                 'success': False,
-                'error': 'No suitable bids found'
-            }), 404
+                'message': 'No suitable bids found for this project'
+            }), 400
+            
+        # Update all bids for this project
+        for bid in project.bids:
+            if bid.id == winning_bid.id:
+                bid.status = BidStatus.ACCEPTED
+                
+                # Update professional's stats for the winner
+                professional = bid.professional
+                professional.successful_bids += 1
+                professional.total_bids += 1
+                
+                # Update the professional's average rating based on the winning score
+                if professional.average_rating is None:
+                    professional.average_rating = winning_score
+                else:
+                    professional.average_rating = (
+                        (professional.average_rating * (professional.total_bids - 1) + winning_score) 
+                        / professional.total_bids
+                    )
+                
+                # Notify the winner
+                notify_bid_accepted(bid)
+            else:
+                # Reject all other bids and notify the bidders
+                if bid.status != BidStatus.REJECTED:  # Only update if not already rejected
+                    bid.status = BidStatus.REJECTED
+                    send_notification(
+                        bid.professional_id,
+                        "Bid Not Selected",
+                        f"Your bid for project {project.title} was not selected.",
+                        "bid_rejected"
+                    )
         
-        project.assigned_contractor_id = winning_bid.professional_id
+        # Update project status to AWARDED
         project.status = JobStatus.AWARDED
-        winning_bid.status = BidStatus.ACCEPTED
-    
-        # Use the professional relationship which is defined in the Bid model
-        professional = winning_bid.professional
-        professional.total_bids += 1
-        professional.successful_bids += 1
-       
-        if professional.total_bids > 0:
-            professional.average_rating = (
-                (professional.average_rating * (professional.total_bids - 1) + winning_score) 
-                / professional.total_bids
-            )
+        project.assigned_contractor_id = winning_bid.professional_id
         
         db.session.commit()
-     
-        notify_bid_accepted(winning_bid)
         
         return jsonify({
             'success': True,
@@ -516,69 +541,83 @@ def professional_dashboard():
     # bid submission to include location matching
 @app.route('/api/projects/<int:project_id>/bids', methods=['POST'])
 @jwt_required()
-    
+@role_required([UserRole.PROFESSIONAL])
 def submit_bid(project_id):
-        try:
-            data = validate_json()
-            required_fields = ['amount', 'proposal', 'timeline_weeks']
-            validate_required_fields(data, required_fields)
-            
-            project = Job.query.get_or_404(project_id)
-            contractor = get_current_user()
-         
-            if contractor.role != UserRole.PROFESSIONAL:
-                return jsonify({'error': 'Only professionals can submit bids'}), 403
-         
-            if project.status != JobStatus.OPEN:
-                return jsonify({'error': 'Project is not accepting bids'}), 400
+    try:
+        data = validate_json()
+        required_fields = ['amount', 'proposal', 'timeline_weeks']
+        validate_required_fields(data, required_fields)
+        
+        project = Job.query.get_or_404(project_id)
+        contractor = get_current_user()
     
-            existing_bid = Bid.query.filter_by(
-                project_id=project_id,
-                professional_id=contractor.id
-            ).first()
-            
-            if existing_bid:
-                return jsonify({'error': 'You have already submitted a bid for this project'}), 400
-          
-            location_score, match_type = location_match_score(project.location, contractor.location)
-            
-            # Create bid
-            bid = Bid(
-                project_id=project_id,
-                professional_id=contractor.id,
-                amount=float(data['amount']),
-                proposal=data['proposal'],
-                timeline_weeks=int(data['timeline_weeks']),
-                location_score=location_score,
-                location_match_type=match_type,
-                status=BidStatus.PENDING
-            )
-            
-            db.session.add(bid)
-            db.session.commit()
-          
-            send_notification(
-                project.customer_id,
-                "New Bid Received",
-                f"A new bid has been submitted for your project: {project.title}",
-                "new_bid"
-            )
-            
+        # Check if project is open for bidding
+        if project.status != JobStatus.OPEN:
             return jsonify({
-                'success': True,
-                'message': 'Bid submitted successfully',
-                'data': {
-                    'bid_id': bid.id,
-                    'location_score': location_score,
-                    'match_type': match_type
-                }
-            })
+                'success': False,
+                'message': 'This project is no longer accepting bids'
+            }), 400
+
+        # Check if a winner has already been selected
+        if project.status == JobStatus.AWARDED:
+            return jsonify({
+                'success': False,
+                'message': 'A winner has already been selected for this project'
+            }), 400
+    
+        # Check for existing bid from this professional
+        existing_bid = Bid.query.filter_by(
+            project_id=project_id,
+            professional_id=contractor.id
+        ).first()
+        
+        if existing_bid:
+            return jsonify({
+                'success': False,
+                'message': 'You have already submitted a bid for this project'
+            }), 400
+      
+        # Calculate location match score
+        location_score, match_type = location_match_score(project.location, contractor.location)
+        
+        # Create bid
+        bid = Bid(
+            project_id=project_id,
+            professional_id=contractor.id,
+            amount=float(data['amount']),
+            proposal=data['proposal'],
+            timeline_weeks=int(data['timeline_weeks']),
+            location_score=location_score,
+            location_match_type=match_type,
+            status=BidStatus.PENDING
+        )
+        
+        db.session.add(bid)
+        db.session.commit()
+      
+        # Notify project owner about the new bid
+        send_notification(
+            project.customer_id,
+            "New Bid Received",
+            f"A new bid has been submitted for your project: {project.title}",
+            "new_bid"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bid submitted successfully',
+            'data': {
+                'bid_id': bid.id,
+                'location_score': location_score,
+                'match_type': match_type
+            }
+        })
             
-        except ValueError as e:
-            return jsonify({'success': False, 'error': str(e)}), 400
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'success': False, 'error': 'Failed to submit bid'}), 500
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Failed to submit bid'}), 500
 
 # Customer only routes
 @app.route('/api/customer/dashboard', methods=['GET'])
@@ -669,9 +708,72 @@ def test():
             'timestamp': datetime.now().isoformat()
         })
 
+@app.route('/api/projects/<int:project_id>', methods=['GET'])
+@jwt_required()
+def get_project(project_id):
+    try:
+        project = Job.query.get_or_404(project_id)
+        current_user = get_current_user()
+        
+        # Check if user has access to this project
+        has_access = (
+            current_user.role == UserRole.ADMIN or
+            project.customer_id == current_user.id or
+            (project.assigned_contractor_id and project.assigned_contractor_id == current_user.id)
+        )
+        
+        if not has_access:
+            return jsonify({
+                'success': False,
+                'message': 'You do not have permission to view this project'
+            }), 403
+        
+        # Prepare project data
+        project_data = {
+            'id': project.id,
+            'title': project.title,
+            'description': project.description,
+            'status': project.status.value,
+            'created_at': project.created_at.isoformat() if project.created_at else None,
+            'category_id': project.category_id,
+            'location': project.location,
+            'customer_id': project.customer_id,
+            'assigned_contractor_id': project.assigned_contractor_id
+        }
+        
+        # Only include budget and bids for the project owner or admin
+        if current_user.role in [UserRole.ADMIN, UserRole.CUSTOMER] and project.customer_id == current_user.id:
+            project_data['budget'] = str(project.budget)
+            
+            # Include all bids for the project owner
+            bids_data = []
+            for bid in project.bids:
+                bid_data = {
+                    'id': bid.id,
+                    'amount': str(bid.amount),
+                    'status': bid.status.value,
+                    'created_at': bid.created_at.isoformat() if bid.created_at else None,
+                    'professional_id': bid.professional_id,
+                    'professional_name': bid.professional.name if bid.professional else None
+                }
+                bids_data.append(bid_data)
+            
+            project_data['bids'] = bids_data
+        
+        return jsonify({
+            'success': True,
+            'data': project_data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to fetch project details'
+        }), 500
+
 @app.route('/api/projects', methods=['POST'])
 @jwt_required()
-@role_required([UserRole.CUSTOMER])
+@role_required([UserRole.ADMIN, UserRole.CUSTOMER])
 def create_project():
     try:
         data = validate_json()
