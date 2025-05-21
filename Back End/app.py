@@ -337,9 +337,10 @@ def select_winning_bid(project_id):
     # Calculate score for each bid
     scored_bids = []
     for bid in bids:
-        score = calculate_bid_score(bid)
-        scored_bids.append((bid, score))
-        print(f"Bid ID: {bid.id}, Professional: {bid.professional_id}, Score: {score:.2f}")
+        # calculate_bid_score returns a tuple of (total_score, score_details)
+        total_score, score_details = calculate_bid_score(bid)
+        scored_bids.append((bid, total_score))
+        print(f"Bid ID: {bid.id}, Professional: {bid.professional_id}, Score: {total_score:.2f}, Details: {score_details}")
     
     # Sort by score (descending)
     scored_bids.sort(key=lambda x: x[1], reverse=True)
@@ -469,7 +470,8 @@ def select_winner(project_id):
                 professional.successful_bids += 1
                 professional.total_bids += 1
                 
-                # Update the professional's average rating based on the winning score
+                                # Update the professional's average rating based on the winning score
+                # winning_score is already just the total_score, not a tuple
                 if professional.average_rating is None:
                     professional.average_rating = winning_score
                 else:
@@ -497,13 +499,16 @@ def select_winner(project_id):
         
         db.session.commit()
         
+        # Ensure winning_score is properly formatted (extract score from tuple if needed)
+        score_value = winning_score[0] if isinstance(winning_score, tuple) else float(winning_score)
+        
         return jsonify({
             'success': True,
             'message': 'Winning bid selected successfully',
             'data': {
                 'bid_id': winning_bid.id,
                 'contractor_id': winning_bid.professional_id,
-                'score': winning_score
+                'score': score_value
             }
         })
         
@@ -591,7 +596,7 @@ def submit_bid(project_id):
     
         # Check for existing bid from this professional
         existing_bid = Bid.query.filter_by(
-            project_id=project_id,
+            job_id=project_id,  # Use job_id instead of project_id
             professional_id=contractor.id
         ).first()
         
@@ -606,7 +611,7 @@ def submit_bid(project_id):
         
         # Create bid
         bid = Bid(
-            project_id=project_id,
+            job_id=project_id,  # Use job_id instead of project_id
             professional_id=contractor.id,
             amount=float(data['amount']),
             proposal=data['proposal'],
@@ -639,9 +644,99 @@ def submit_bid(project_id):
             
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Database error in submit_bid: {str(e)}")
+        app.logger.error(f"SQLAlchemy error details: {e.__dict__}")
+        return jsonify({
+            'success': False, 
+            'error': 'Database error while submitting bid',
+            'details': str(e)
+        }), 500
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': 'Failed to submit bid'}), 500
+        app.logger.error(f"Unexpected error in submit_bid: {str(e)}")
+        app.logger.exception("Full traceback:")
+        return jsonify({
+            'success': False, 
+            'error': 'Failed to submit bid',
+            'details': str(e),
+            'type': type(e).__name__
+        }), 500
+
+@app.route('/api/projects/<int:project_id>/bids', methods=['GET'])
+@jwt_required()
+def get_project_bids(project_id):
+    try:
+        project = Job.query.get_or_404(project_id)
+        current_user = get_current_user()
+        
+        # Check if user has permission to view bids
+        can_view_all = current_user.role in [UserRole.ADMIN] or current_user.id == project.customer_id
+        
+        # If user is a professional, they can only see their own bid
+        if current_user.role == UserRole.PROFESSIONAL:
+            bids = Bid.query.filter_by(
+                job_id=project_id,
+                professional_id=current_user.id
+            ).all()
+            return jsonify({
+                'success': True,
+                'data': [{
+                    'id': bid.id,
+                    'amount': float(bid.amount) if bid.amount else None,
+                    'proposal': bid.proposal,
+                    'timeline_weeks': bid.timeline_weeks,
+                    'status': bid.status.value,
+                    'created_at': bid.created_at.isoformat() if bid.created_at else None,
+                    'professional': {
+                        'id': bid.professional_rel.id,
+                        'name': bid.professional_rel.name,
+                        'email': bid.professional_rel.email
+                    }
+                } for bid in bids]
+            })
+            
+        # Admin and project owner can see all bids
+        if can_view_all:
+            bids = Bid.query.filter_by(job_id=project_id).all()
+            return jsonify({
+                'success': True,
+                'data': [{
+                    'id': bid.id,
+                    'amount': float(bid.amount) if bid.amount else None,
+                    'proposal': bid.proposal,
+                    'timeline_weeks': bid.timeline_weeks,
+                    'status': bid.status.value,
+                    'created_at': bid.created_at.isoformat() if bid.created_at else None,
+                    'location_score': bid.location_score,
+                    'location_match_type': bid.location_match_type,
+                    'professional': {
+                        'id': bid.professional_rel.id,
+                        'name': bid.professional_rel.name,
+                        'email': bid.professional_rel.email,
+                        'phone': getattr(bid.professional_rel, 'phone', None),
+                        'rating': getattr(bid.professional_rel, 'average_rating', None),
+                        'success_rate': (bid.professional_rel.successful_bids / bid.professional_rel.total_bids * 100) 
+                                      if hasattr(bid.professional_rel, 'total_bids') and getattr(bid.professional_rel, 'total_bids', 0) > 0 
+                                      else 0
+                    }
+                } for bid in bids]
+            })
+            
+        return jsonify({
+            'success': False,
+            'message': 'You do not have permission to view these bids'
+        }), 403
+        
+    except Exception as e:
+        app.logger.error(f"Error fetching project bids: {str(e)}")
+        app.logger.exception("Full traceback:")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch project bids',
+            'details': str(e)
+        }), 500
 
 # Customer only routes
 @app.route('/api/customer/dashboard', methods=['GET'])
