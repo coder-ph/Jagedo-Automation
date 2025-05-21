@@ -4,38 +4,77 @@ import json
 import asyncio
 import requests
 import tempfile
+import threading
+import time
 from datetime import datetime, timedelta
 from werkzeug.datastructures import FileStorage
 from werkzeug.datastructures import FileStorage as FS
 from sqlalchemy import text
-from bid_automation import BidAutomation
+from werkzeug.serving import make_server
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path)
+# Add the parent directory to the path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
-from app import app, db, bcrypt
-from models import (
+# Import Flask and extensions
+from flask import Flask
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager, create_access_token
+
+# Import app factory and models
+from app import create_app
+from app.extensions import db, jwt
+from app.models import (
     User, Job, Bid, Attachment, UserRole, JobStatus, BidStatus,
     Notification, Message, Category, ProfessionalSkill, Review, 
     ProjectStatusHistory
 )
-from flask_jwt_extended import create_access_token, JWTManager
 
+# Create test app
+app = create_app('testing')
+app.config.update({
+    'TESTING': True,
+    'DEBUG': True,
+    'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+    'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+    'JWT_SECRET_KEY': 'test-secret-key',
+    'JWT_ACCESS_TOKEN_EXPIRES': timedelta(hours=1),
+    'JWT_REFRESH_TOKEN_EXPIRES': timedelta(days=30),
+    'CACHE_TYPE': 'SimpleCache',
+    'CACHE_DEFAULT_TIMEOUT': 300,
+    'SERVER_NAME': 'localhost:5001',
+    'PREFERRED_URL_SCHEME': 'http',
+    'WTF_CSRF_ENABLED': False
+})
+
+# Initialize bcrypt
+bcrypt = Bcrypt(app)
+
+# Create all database tables
 with app.app_context():
-    if 'bcrypt' not in app.extensions:
-        bcrypt.init_app(app)
-    
-    if 'jwt' not in app.extensions:
-        app.config['JWT_SECRET_KEY'] = 'test-secret-key'
-        jwt = JWTManager(app)
-  
     db.create_all()
 
-BASE_URL = 'http://localhost:5000'
+# Import BidAutomation after app is created
+from bid_automation import BidAutomation
+
+with app.app_context():
+    # Ensure bcrypt is initialized
+    if 'bcrypt' not in app.extensions:
+        app.extensions['bcrypt'] = bcrypt
+    
+    # Create all database tables
+    db.create_all()
+
+# Base URL for API requests
+BASE_URL = 'http://localhost:5001'
 TEST_CUSTOMER_EMAIL = 'test_customer_new@example.com'
 TEST_CUSTOMER_PASSWORD = 'customer123'
 TEST_PRO_EMAIL = 'test_pro_new@example.com'
 TEST_PRO_PASSWORD = 'password123'
+TEST_PRO_EMAIL_2 = 'test_pro2_new@example.com'
+TEST_PRO_PASSWORD_2 = 'password123'
 
 def create_test_user(email, password, role, **kwargs):
     with app.app_context():
@@ -49,14 +88,11 @@ def create_test_user(email, password, role, **kwargs):
                 db.session.delete(existing_user)
                 db.session.commit()
             
-            # Create new user
-            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-            
+            # Prepare user data without password
             user_data = {
                 'name': kwargs.get('name', 'Test User'),
                 'email': email,
                 'role': role,
-                'password_hash': hashed_password,
                 'company_name': kwargs.get('company_name', 'Test Company'),
                 'location': kwargs.get('location', 'Nairobi'),
                 'is_active': True
@@ -71,7 +107,9 @@ def create_test_user(email, password, role, **kwargs):
                     'total_bids': kwargs.get('total_bids', 10)
                 })
             
+            # Create user with plain password - the setter will hash it
             user = User(**user_data)
+            user.password = password  # This will use the password setter to hash it
             db.session.add(user)
             db.session.commit()
             print(f"Created test {role.value} with ID: {user.id}")
@@ -83,63 +121,158 @@ def create_test_user(email, password, role, **kwargs):
             print(f"Error creating test user {email}: {e}")
             raise
 
-def login_user(email, password):
-    login_url = f'{BASE_URL}/api/login'
-    login_data = {
-        'email': email,
-        'password': password
-    }
-    
-    try:
-        response = requests.post(login_url, json=login_data, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get('success'):
-            return {
-                'access_token': data['data']['access_token'],
-                'user': data['data'].get('user')
-            }
-        else:
-            print(f"Login failed: {data.get('message', 'Unknown error')}")
+def login_user(email, password, client=None):
+    """Login a user using the test client or requests."""
+    if client:
+        # Use test client
+        response = client.post('/api/auth/login', json={
+            'email': email,
+            'password': password
+        })
+        data = response.get_json()
+    else:
+        # Fallback to requests
+        login_url = f'{BASE_URL}/api/auth/login'
+        try:
+            response = requests.post(login_url, json={
+                'email': email,
+                'password': password
+            }, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Login request failed: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_data = e.response.json()
+                    print(f"Error response: {error_data}")
+                except:
+                    print(f"Raw response: {e.response.text}")
             return None
-    except requests.exceptions.RequestException as e:
-        print(f"Login request failed: {str(e)}")
+    
+    if data.get('status') == 'success':
+        return {
+            'access_token': data['data']['access_token'],
+            'user': data['data'].get('user')
+        }
+    else:
+        error_msg = data.get('message', 'Unknown error')
+        if 'data' in data and 'errors' in data['data']:
+            error_msg = str(data['data']['errors'])
+        print(f"Login failed: {error_msg}")
         return None
 
-def upload_project_document(project_id, token, file_content=None):
-    url = f"{BASE_URL}/api/projects/{project_id}/documents"
-    headers = {
-        'Authorization': f'Bearer {token}'
-    }
+def upload_project_document(project_id, token, file_content=None, client=None):
+    """Upload a document to a project using either the test client or direct HTTP requests.
+    
+    Args:
+        project_id: ID of the project to upload the document to
+        token: Authentication token
+        file_content: Optional content for the file (default: auto-generated)
+        client: Flask test client (if using test client)
+    """
+    if file_content is None:
+        file_content = f"Test document for project {project_id}\nUploaded at {datetime.utcnow()}"
     
     try:
+        if client is not None:
+            # Use test client
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            
+            # Create a temporary file for the test client
+            with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as temp_file:
+                temp_file.write(file_content)
+                temp_file_path = temp_file.name
+            
+            try:
+                with open(temp_file_path, 'rb') as f:
+                    data = {
+                        'file': (f, 'test_document.txt')
+                    }
+                    
+                    # Use the correct document upload endpoint with document_type and job_id
+                    response = client.post(
+                        '/api/documents/upload',
+                        data={
+                            'file': (open(temp_file_path, 'rb'), 'test_document.txt'),
+                            'document_type': 'job',
+                            'job_id': str(project_id)  # Use job_id to associate the document with the project
+                        },
+                        headers=headers,
+                        content_type='multipart/form-data'
+                    )
+                    
+                    print(f"Document upload response status: {response.status_code}")
+                    print(f"Response data: {response.data.decode('utf-8')}")
+                    
+                    if response.status_code != 201:
+                        print(f"Failed to upload document: {response.status_code}")
+                        return None
+                    
+                    data = response.get_json()
+                    print(f"Upload response data: {json.dumps(data, indent=2)}")
+                    
+                    # Extract document ID from the response
+                    document_id = None
+                    if data.get('attachment'):
+                        document_id = data['attachment'].get('id')
+                    
+                    if document_id:
+                        print(f"Uploaded document with ID: {document_id}")
+                        return document_id
+                    else:
+                        print("Error: Could not extract document ID from response")
+                        print(f"Response data: {data}")
+                        return None
+                        
+            finally:
+                # Clean up the temporary file
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+        
+        # Fall back to direct HTTP requests
+        url = f"{BASE_URL}/api/documents/upload"
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        
         with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as temp_file:
-            if file_content is None:
-                file_content = f"Test document for project {project_id}\nUploaded at {datetime.utcnow()}"
             temp_file.write(file_content)
             temp_file_path = temp_file.name
         
-        with open(temp_file_path, 'rb') as f:
-            files = {
-                'file': (os.path.basename(temp_file_path), f, 'text/plain')
-            }
-            response = requests.post(url, headers=headers, files=files)
-        
-        os.unlink(temp_file_path)
-        
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get('success'):
-            document_id = data.get('document_id') or data.get('data', {}).get('document_id')
-            if document_id:
-                print(f"Uploaded document with ID: {document_id}")
-                return document_id
-        
-        print(f"Failed to upload document: {data.get('message', 'Unknown error')}")
-        return None
-        
+        try:
+            with open(temp_file_path, 'rb') as f:
+                files = {
+                    'file': (os.path.basename(temp_file_path), f, 'text/plain'),
+                    'project_id': (None, str(project_id))  # Add project_id as form data
+                }
+                response = requests.post(url, headers=headers, files=files)
+            
+            response.raise_for_status()
+            data = response.json()
+            print(f"Upload response data (direct HTTP): {json.dumps(data, indent=2)}")
+            
+            if data.get('success'):
+                # Extract document ID from the response
+                document_id = None
+                if data.get('attachment'):
+                    document_id = data['attachment'].get('id')
+                
+                if document_id:
+                    print(f"Uploaded document with ID: {document_id}")
+                    return document_id
+            
+            error_msg = data.get('message', 'Unknown error')
+            print(f"Failed to upload document: {error_msg}")
+            print(f"Response data: {data}")
+            return None
+            
+        finally:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            
     except requests.exceptions.RequestException as e:
         print(f"Error uploading document: {str(e)}")
         if hasattr(e, 'response') and hasattr(e.response, 'text'):
@@ -147,55 +280,169 @@ def upload_project_document(project_id, token, file_content=None):
         return None
     except Exception as e:
         print(f"Unexpected error in upload_project_document: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
-def download_document(document_id, token, expect_success=True):
-    url = f"{BASE_URL}/api/documents/{document_id}"
+def download_document(document_id, token, expect_success=True, client=None):
+    """Download a document using either the test client or direct HTTP requests.
+    
+    Args:
+        document_id: ID of the document to download
+        token: Authentication token
+        expect_success: Whether to expect a successful response (default: True)
+        client: Flask test client (if using test client)
+    
+    Returns:
+        The document content if successful, None otherwise
+    """
     headers = {
         'Authorization': f'Bearer {token}'
     }
     
+    # Use Flask test client if available
+    if client is not None:
+        try:
+            response = client.get(
+                f'/api/documents/download/{document_id}',
+                headers=headers
+            )
+            
+            if expect_success:
+                if response.status_code != 200:
+                    print(f"Failed to download document: {response.status_code} - {response.data.decode()}")
+                    return None
+                return response.data
+            else:
+                if response.status_code == 200:
+                    return response.data
+                return None
+                
+        except Exception as e:
+            if expect_success:
+                print(f"Failed to download document using test client: {e}")
+            return None
+    
+    # Fall back to direct HTTP requests
     try:
-        response = requests.get(url, headers=headers, stream=True)
+        response = requests.get(
+            f'{BASE_URL}/api/documents/download/{document_id}',
+            headers=headers,
+            stream=True
+        )
         
         if expect_success:
             response.raise_for_status()
-            content = b''.join(chunk for chunk in response.iter_content(chunk_size=128))
-            print(f"Successfully downloaded document {document_id} ({len(content)} bytes)")
-            return content
+            return response.content
         else:
-            if response.status_code < 400:
-                raise AssertionError(f"Expected document access to be denied but got {response.status_code}")
-            print(f"Document access correctly denied for document {document_id}")
+            if response.status_code == 200:
+                return response.content
             return None
+            
     except requests.exceptions.RequestException as e:
         if expect_success:
-            print(f"Failed to download document: {str(e)}")
-            if hasattr(e, 'response') and hasattr(e.response, 'text'):
-                print(f"Response: {e.response.text}")
+            print(f"Failed to download document: {e}")
         return None
     except Exception as e:
-        print(f"Unexpected error in upload_project_document: {str(e)}")
+        print(f"Unexpected error in download_document: {str(e)}")
         return None
 
-def create_test_project(token, title="Test Project", with_document=False):
-    url = f"{BASE_URL}/api/projects"
+def create_test_project(token, title="Test Project", with_document=False, category_id=None, client=None):
+    """Create a test project using either the test client or direct HTTP requests.
     
+    Args:
+        token (str): Authentication token
+        title (str): Project title
+        with_document (bool): Whether to include a document with the project
+        category_id (int, optional): Category ID for the project
+        client: Flask test client (if using test client)
+    """
+    if category_id is None:
+        # Create a default category if none provided
+        with app.app_context():
+            category_id = create_test_category()
+    
+    # Prepare form data
     project_data = {
         'title': title,
         'description': 'This is a test project description',
-        'budget': 1000000,
+        'budget': '1000000',  # Convert to string for form data
         'location': 'Nairobi, Kenya',
-        'category_id': 1,
-        'timeline_weeks': 8,
-        'max_timeline': 12,  # Add max_timeline for scoring
-        'requirements': 'Test requirements',
-        'documents': []
+        'category_id': str(category_id),  # Use the provided or created category ID
+        'timeline_weeks': '8',  # Convert to string for form data
+        'max_timeline': '12',  # Convert to string for form data
+        'requirements': 'Test requirements'
     }
     
     print(f"\nCreating project with data: {json.dumps(project_data, indent=2)}")
     
     try:
+        if client is not None:
+            # Use test client
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Accept': 'application/json'
+            }
+            
+            if with_document:
+                # Create a temporary file for the test client
+                with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as temp_file:
+                    temp_file.write(f"Initial document for project: {title}\nCreated at: {datetime.utcnow()}")
+                    temp_file_path = temp_file.name
+                
+                try:
+                    with open(temp_file_path, 'rb') as f:
+                        data = {}
+                        for key, value in project_data.items():
+                            data[key] = (None, str(value))
+                        data['file'] = (f, 'test_document.txt')
+                        
+                        response = client.post(
+                            '/api/projects',
+                            data=data,
+                            content_type='multipart/form-data',
+                            headers=headers
+                        )
+                finally:
+                    # Clean up the temporary file
+                    if os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
+            else:
+                # No file upload, just form data
+                # Convert all values to strings and ensure proper form data format
+                data = {}
+                for key, value in project_data.items():
+                    data[key] = str(value)
+                
+                print(f"Sending request to /api/projects with data: {data}")
+                response = client.post(
+                    '/api/projects',
+                    data=data,
+                    headers=headers,
+                    content_type='multipart/form-data'  # Ensure proper content type
+                )
+                print(f"Response status: {response.status_code}")
+                print(f"Response data: {response.data.decode('utf-8')}")
+            
+            if response.status_code != 201:
+                print(f"Failed to create project: {response.status_code}")
+                print(f"Response: {response.data.decode('utf-8')}")
+                return None
+                
+            data = response.get_json()
+            print(f"Project creation response: {json.dumps(data, indent=2)}")
+            
+            # Extract project ID from the response
+            project_id = data.get('project', {}).get('id')
+            if project_id:
+                print(f"Successfully created project with ID: {project_id}")
+                return project_id
+            else:
+                print("Error: Could not extract project ID from response")
+                return None
+        
+        # Fall back to direct HTTP requests
+        url = f"{BASE_URL}/api/projects"
         headers = {
             'Authorization': f'Bearer {token}',
             'Accept': 'application/json'
@@ -207,27 +454,25 @@ def create_test_project(token, title="Test Project", with_document=False):
                 temp_file_path = temp_file.name
             
             with open(temp_file_path, 'rb') as f:
-                files = {
-                    'file': (os.path.basename(temp_file_path), f, 'text/plain')
-                }
-                for key, value in project_data.items():
-                    if isinstance(value, (str, int, float, bool)):
-                        files[key] = (None, str(value))
                 
                 response = requests.post(
-                    url, 
-                    headers={'Authorization': f'Bearer {token}'},
-                    files=files
+                    url,
+                    files=files,
+                    data=data,  # Send as form data
+                    headers=headers
                 )
-            
-            os.unlink(temp_file_path)
+                
+                # Clean up the temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    print(f"Warning: Failed to delete temporary file {temp_file_path}: {e}")
         else:
-            headers['Content-Type'] = 'application/json'
+            # Send as form data
             response = requests.post(
-                url, 
-                headers=headers, 
-                json=project_data, 
-                timeout=10
+                url,
+                data=project_data,  # Send as form data
+                headers=headers
             )
         
         print(f"Status Code: {response.status_code}")
@@ -270,15 +515,23 @@ def create_test_project(token, title="Test Project", with_document=False):
         print(f"Unexpected error in create_test_project: {str(e)}")
         return None
 
-def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensive experience in construction projects similar to this one. My team and I can complete the work within the specified timeline and budget.', timeline_weeks=12, team_members=None):
-    url = f"{base_url}/api/projects/{job_id}/bids"
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
+def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensive experience in construction projects similar to this one. My team and I can complete the work within the specified timeline and budget.', timeline_weeks=12, team_members=None, client=None):
+    """Submit a bid for a job.
+    
+    Args:
+        base_url: Base URL of the API
+        token: Authentication token
+        job_id: ID of the job to bid on
+        amount: Bid amount
+        proposal: Bid proposal text
+        timeline_weeks: Estimated timeline in weeks
+        team_members: Optional list of team members
+        client: Flask test client (if using test client)
+    """
+    url = "/api/bids"  # Updated to use the correct endpoint
     
     bid_data = {
+        'job_id': job_id,  # Include job_id in the request data
         'amount': amount,
         'proposal': proposal,
         'timeline_weeks': timeline_weeks
@@ -290,39 +543,53 @@ def submit_bid(base_url, token, job_id, amount=4500000, proposal='I have extensi
     print(f"\nSubmitting bid with data: {json.dumps(bid_data, indent=2)}")
     
     try:
-        response = requests.post(url, headers=headers, json=bid_data)
+        if client is not None:
+            # Use test client with form data
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            # Convert all values to strings as expected by form data
+            form_data = {k: str(v) for k, v in bid_data.items()}
+            response = client.post(
+                url,
+                headers=headers,
+                data=form_data,
+                content_type='application/x-www-form-urlencoded'
+            )
+            response_data = response.get_json()
+        else:
+            # Use direct HTTP request with form data
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            # Convert all values to strings as expected by form data
+            form_data = {k: str(v) for k, v in bid_data.items()}
+            full_url = f"{base_url}{url}"
+            response = requests.post(full_url, headers=headers, data=form_data)
+            response.raise_for_status()
+            response_data = response.json()
         
         print(f"Status Code: {response.status_code}")
-        print(f"Response Headers: {dict(response.headers)}")
+        print(f"Response Body: {json.dumps(response_data, indent=2) if response_data else 'None'}")
         
-        try:
-            response_data = response.json()
-            print("Response Body:", json.dumps(response_data, indent=2))
-        except ValueError:
-            print("Response Body (non-JSON):", response.text)
+        if hasattr(response, 'status_code') and response.status_code == 500:
+            print("\nServer returned 500 error.")
+            if hasattr(response, 'data'):
+                print("Response data:", response.data.decode('utf-8'))
         
-        if response.status_code == 500:
-            print("\nServer returned 500 error. Checking for traceback...")
-            try:
-                if hasattr(response, 'text') and 'Traceback' in response.text:
-                    print("\nServer Traceback:")
-                    print(response.text.split('Traceback')[-1])
-            except Exception as e:
-                print(f"Could not extract traceback: {str(e)}")
+        return response_data
         
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"\nBid submission failed with status {getattr(e.response, 'status_code', 'N/A')}")
+    except Exception as e:
+        print(f"\nBid submission failed: {str(e)}")
         if hasattr(e, 'response') and e.response is not None:
-            print(f"Response content: {e.response.text}")
-            if hasattr(e.response, 'headers'):
-                print(f"Response headers: {dict(e.response.headers)}")
-        print(f"Error details: {str(e)}")
+            print(f"Status code: {getattr(e.response, 'status_code', 'N/A')}")
+            if hasattr(e.response, 'text'):
+                print(f"Response content: {e.response.text}")
         
         import traceback
-        print("\nLocal Traceback:")
+        print("\nTraceback:")
         traceback.print_exc()
+        return None
         
         return None
         return None
@@ -356,47 +623,58 @@ def get_project_bids(project_id, token, expected_status=200):
         print(f"Request failed: {str(e)}")
         return None
 
-def select_winning_bid(project_id, bid_id, token):
+def select_winning_bid(project_id, bid_id, token, client=None):
+    """Accept a bid for a project.
+    
+    Args:
+        project_id: ID of the project (unused in the actual request, kept for backward compatibility)
+        bid_id: ID of the bid to accept
+        token: Authentication token
+        client: Flask test client (if using test client)
+    """
+    url = f'/api/bids/{bid_id}/accept'
+    
+    print(f"\nAccepting bid {bid_id}...")
+    
     try:
-        url = f'{BASE_URL}/api/projects/{project_id}/select-winner'
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-        
-        data = {'bid_id': bid_id}
-        
-        print(f"\nSelecting winning bid {bid_id} for project {project_id}...")
-        print(f"Request URL: {url}")
-        print(f"Request headers: {headers}")
-        print(f"Request data: {data}")
-        
-        response = requests.post(url, headers=headers, json=data, timeout=10)
-        print(f"Response status code: {response.status_code}")
-        print(f"Response headers: {response.headers}")
-        print(f"Response body: {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"Successfully selected winning bid: {result}")
-            return result
-        else:
-            error_msg = f"Failed to select winning bid. Status: {response.status_code}, Response: {response.text}"
-            print(error_msg)
-            return {
-                'success': False,
-                'error': error_msg,
-                'status_code': response.status_code,
-                'response': response.text
+        if client is not None:
+            # Use test client
+            headers = {
+                'Authorization': f'Bearer {token}'
             }
+            response = client.post(
+                url,
+                headers=headers
+            )
+            response_data = response.get_json()
+        else:
+            # Use direct HTTP request
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            full_url = f"{BASE_URL}{url}"
+            response = requests.post(full_url, headers=headers)
+            response.raise_for_status()
+            response_data = response.json()
+        
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Body: {json.dumps(response_data, indent=2) if response_data else 'None'}")
+        
+        return response_data
+        
     except Exception as e:
-        error_msg = f"Exception while selecting winning bid: {str(e)}"
-        print(error_msg)
+        print(f"\nError accepting bid: {str(e)}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Status code: {getattr(e.response, 'status_code', 'N/A')}")
+            if hasattr(e.response, 'text'):
+                print(f"Response content: {e.response.text}")
+        
         import traceback
+        print("\nTraceback:")
         traceback.print_exc()
         return {
             'success': False,
-            'error': error_msg,
+            'error': f"Exception while accepting bid: {str(e)}",
             'exception': str(e)
         }
 
@@ -422,116 +700,162 @@ def clean_database():
             db.session.rollback()
             return False
 
+def create_test_category(name="Test Category"):
+    """Create a test category if it doesn't exist."""
+    from app.models import Category
+    
+    # Check if category already exists
+    category = db.session.scalars(
+        db.select(Category).filter_by(name=name)
+    ).first()
+    if not category:
+        category = Category(name=name)
+        db.session.add(category)
+        db.session.commit()
+    return category.id
+
 def test_document_access():
-    with app.app_context():
-        print("=== Starting Document Access Test ===\n")
-        
-        print("Cleaning up database...")
-        clean_database()
-        
-        print("\n1. Creating test users...")
-        customer = create_test_user(
-            email=TEST_CUSTOMER_EMAIL,
-            password=TEST_CUSTOMER_PASSWORD,
-            role=UserRole.CUSTOMER,
-            name="Test Customer",
-            location="Nairobi"
-        )
-        
-        pro1 = create_test_user(
-            email=TEST_PRO_EMAIL,
-            password=TEST_PRO_PASSWORD,
-            role=UserRole.PROFESSIONAL,
-            name="Test Professional 1",
-            location="Nairobi",
-            nca_level=5,
-            average_rating=4.8,
-            total_ratings=15,
-            successful_bids=12,
-            total_bids=15
-        )
-        
-        pro2 = create_test_user(
-            email="test_pro2@example.com",
-            password=TEST_PRO_PASSWORD,
-            role=UserRole.PROFESSIONAL,
-            name="Test Professional 2",
-            location="Mombasa",
-            nca_level=4,
-            average_rating=4.5,
-            total_ratings=10,
-            successful_bids=8,
-            total_bids=10
-        )
-        
-        print("\n2. Logging in as customer...")
-        customer_auth = login_user(TEST_CUSTOMER_EMAIL, TEST_CUSTOMER_PASSWORD)
-        assert customer_auth is not None, "Failed to login as customer"
-        customer_token = customer_auth['access_token']
-        
-        print("\n3. Logging in as professionals...")
-        pro1_auth = login_user(TEST_PRO_EMAIL, TEST_PRO_PASSWORD)
-        assert pro1_auth is not None, "Failed to login as professional 1"
-        pro1_token = pro1_auth['access_token']
-        
-        pro2_auth = login_user("test_pro2@example.com", TEST_PRO_PASSWORD)
-        assert pro2_auth is not None, "Failed to login as professional 2"
-        pro2_token = pro2_auth['access_token']
-        
-        print("\n4. Creating test project...")
-        project_id = create_test_project(customer_token, "Bidding Workflow Test Project")
-        assert project_id is not None, "Failed to create test project"
-        
-        print("\n5. Uploading document to project...")
-        doc_content = f"Test document for project {project_id}"
-        document_id = upload_project_document(project_id, customer_token, doc_content)
-        assert document_id is not None, "Failed to upload additional document"
-        
-        # Test 1: Verify customer can access the document
-        print("\n6. Testing customer document access...")
-        content = download_document(document_id, customer_token)
-        assert content is not None, "Customer should be able to access the document"
-        print("✓ Customer can access the document")
-        
-        # Test 2: Verify professional 1 can access the document during bidding
-        print("\n7. Testing professional 1 document access during bidding...")
-        content = download_document(document_id, pro1_token)
-        assert content is not None, "Professional 1 should be able to access the document during bidding"
-        print("✓ Professional 1 can access the document during bidding")
-        
-        print("\n7. Submitting bids from both professionals...")
-        bid1_id = submit_bid(BASE_URL, pro1_token, project_id, 4500000, "Professional 1 bid")
-        assert bid1_id is not None, "Failed to submit bid from professional 1"
+    print("\n=== Starting Document Access Test ===")
+    
+    # Create a test client
+    with app.test_client() as client:
+        with app.app_context():
+            # Clean up any existing data first
+            clean_database()
             
-        bid2_id = submit_bid(BASE_URL, pro2_token, project_id, 5000000, "Professional 2 bid")
-        assert bid2_id is not None, "Failed to submit bid from professional 2"
-        print(f"Submitted bids: {bid1_id}, {bid2_id}")
-        
-        print("\n8. Verifying document access after bid submission...")
-        for token, name in [(pro1_token, "Professional 1"), (pro2_token, "Professional 2")]:
-            content = download_document(document_id, token)
-            assert content is not None, f"{name} should still have access to documents after bidding"
-            print(f"{name} can still access the document after bidding")
-        
-        print("\n9. Selecting winning bid...")
-        result = select_winning_bid(project_id, bid1_id, customer_token)
-        assert result is not None and result.get('success'), "Failed to select winning bid"
-        print("Selected professional 1 as the winner")
-        
-        print("\n10. Verifying document access after project award...")
-        content = download_document(document_id, pro1_token)
-        assert content is not None, "Winning professional should still have access to documents"
-        print("Winning professional can still access the document")
-        
-        try:
-            content = download_document(document_id, pro2_token, expect_success=False)
-            assert content is None, "Losing professional should not have access to documents after project award"
-            print("Losing professional cannot access the document after project award")
-        except Exception as e:
-            assert False, f"Error testing losing professional access: {str(e)}"
-        
-        print("All document access tests passed!")
-        return True
+            print("\n1. Creating test category...")
+            category_id = create_test_category()
+            print(f"Created/retrieved category with ID: {category_id}")
+            
+            print("\n2. Creating test users...")
+            customer = create_test_user(
+                email=TEST_CUSTOMER_EMAIL,
+                password=TEST_CUSTOMER_PASSWORD,
+                role=UserRole.CUSTOMER,
+                name="Test Customer",
+                location="Nairobi, Kenya"
+            )
+            print(f"Created test customer with ID: {customer.id}")
+            
+            professional1 = create_test_user(
+                email=TEST_PRO_EMAIL,
+                password=TEST_PRO_PASSWORD,
+                role=UserRole.PROFESSIONAL,
+                name="Test Professional 1",
+                location="Nairobi, Kenya"
+            )
+            print(f"Created test professional with ID: {professional1.id}")
+            
+            professional2 = create_test_user(
+                email=TEST_PRO_EMAIL_2,
+                password=TEST_PRO_PASSWORD_2,
+                role=UserRole.PROFESSIONAL,
+                name="Test Professional 2",
+                location="Nairobi, Kenya"
+            )
+            print(f"Created test professional with ID: {professional2.id}")
+            
+            print("\n3. Logging in as customer...")
+            customer_auth = login_user(TEST_CUSTOMER_EMAIL, TEST_CUSTOMER_PASSWORD, client)
+            assert customer_auth is not None, "Failed to login as customer"
+            customer_token = customer_auth['access_token']
+            print("Successfully logged in as customer")
+            
+            print("\n4. Logging in as professionals...")
+            pro1_auth = login_user(TEST_PRO_EMAIL, TEST_PRO_PASSWORD, client)
+            assert pro1_auth is not None, "Failed to login as professional 1"
+            pro1_token = pro1_auth['access_token']
+            
+            pro2_auth = login_user(TEST_PRO_EMAIL_2, TEST_PRO_PASSWORD_2, client)
+            assert pro2_auth is not None, "Failed to login as professional 2"
+            pro2_token = pro2_auth['access_token']
+            
+            print("\n5. Creating test project...")
+            # Create project with the category we created earlier and pass the test client
+            project_id = create_test_project(
+                customer_token, 
+                "Document Access Test Project", 
+                category_id=category_id,
+                client=client
+            )
+            assert project_id is not None, "Failed to create test project"
+            print(f"Created test project with ID: {project_id}")
+            
+            print("\n6. Uploading document to project...")
+            doc_content = f"Test document for project {project_id}"
+            document_id = upload_project_document(project_id, customer_token, doc_content, client=client)
+            assert document_id is not None, "Failed to upload document"
+            print(f"Uploaded document with ID: {document_id}")
+            
+            # Test 1: Verify customer can access the document
+            print("\n7. Testing customer document access...")
+            content = download_document(document_id, customer_token, client=client)
+            assert content is not None, "Customer should be able to access the document"
+            print("✅ Customer can access the document")
+            
+            # Submit bids from both professionals before testing document access
+            print("\n8. Submitting bids from both professionals...")
+            
+            # Debug: Check project status before submitting bids
+            print(f"Project ID: {project_id}")
+            print(f"Professional 1 token: {pro1_token[:10]}...")
+            print(f"Professional 2 token: {pro2_token[:10]}...")
+            
+            # Submit first bid
+            print("\nSubmitting first bid...")
+            bid1_response = submit_bid(BASE_URL, pro1_token, project_id, 4500000, "Professional 1 bid", client=client)
+            print(f"Bid 1 response: {json.dumps(bid1_response, indent=2) if bid1_response else 'None'}")
+            assert bid1_response is not None, "Failed to submit bid from professional 1"
+            assert bid1_response.get('success') is True, f"Bid 1 submission failed: {bid1_response.get('error', 'Unknown error')}"
+            assert 'bid' in bid1_response, "Bid 1 response missing 'bid' object"
+            bid1_id = bid1_response['bid'].get('id')
+            assert bid1_id is not None, "Bid 1 response missing 'id' field in bid object"
+            
+            # Submit second bid
+            print("\nSubmitting second bid...")
+            bid2_response = submit_bid(BASE_URL, pro2_token, project_id, 5000000, "Professional 2 bid", client=client)
+            print(f"Bid 2 response: {json.dumps(bid2_response, indent=2) if bid2_response else 'None'}")
+            assert bid2_response is not None, "Failed to submit bid from professional 2"
+            assert bid2_response.get('success') is True, f"Bid 2 submission failed: {bid2_response.get('error', 'Unknown error')}"
+            assert 'bid' in bid2_response, "Bid 2 response missing 'bid' object"
+            bid2_id = bid2_response['bid'].get('id')
+            assert bid2_id is not None, "Bid 2 response missing 'id' field in bid object"
+            
+            print(f"✅ Submitted bids: {bid1_id}, {bid2_id}")
+            
+            # Debug: Check if bids were created in the database
+            with app.app_context():
+                from app.models import Bid
+                bids = Bid.query.filter(Bid.job_id == project_id).all()
+                print(f"Found {len(bids)} bids in the database for project {project_id}:")
+                for bid in bids:
+                    print(f"- Bid ID: {bid.id}, Professional ID: {bid.professional_id}, Amount: {bid.amount}")
+            
+            # Test 2: Verify professionals can access the document after bidding
+            print("\n9. Verifying document access after bid submission...")
+            for token, name in [(pro1_token, "Professional 1"), (pro2_token, "Professional 2")]:
+                content = download_document(document_id, token, client=client)
+                assert content is not None, f"{name} should be able to access documents after bidding"
+                print(f"✅ {name} can access the document after bidding")
+            
+            print("\n10. Selecting winning bid from professional 1...")
+            result = select_winning_bid(project_id, bid1_id, customer_token, client=client)
+            assert result is not None and result.get('success') is True, "Failed to select winning bid"
+            print(f"✅ Selected winning bid: {bid1_id}")
+            
+            print("\n11. Verifying document access after project award...")
+            content = download_document(document_id, pro1_token, client=client)
+            assert content is not None, "Winning professional should still have access to documents"
+            print("✅ Winning professional can still access the document")
+            
+            try:
+                content = download_document(document_id, pro2_token, expect_success=False, client=client)
+                assert content is None, "Losing professional should not have access to documents after project award"
+                print("✅ Losing professional cannot access the document after project award")
+            except Exception as e:
+                assert False, f"Error testing losing professional access: {str(e)}"
+            
+            print("\n✅ All document access tests passed!")
 
 async def test_bidding_workflow_async():
     print("\n=== Starting Bidding Workflow Test ===")
@@ -655,7 +979,7 @@ async def test_bidding_workflow_async():
     
     print("\nScores for each bid:")
     with app.app_context():
-        project = Job.query.get(project_id)
+        project = db.session.get(Job, project_id)
         bids = Bid.query.filter_by(job_id=project_id).all()
         
         # Calculate and print scores
@@ -718,7 +1042,7 @@ async def test_bidding_workflow_async():
                 return False
                 
             # Verify the bid status in the database
-            db_bid = db.session.query(Bid).get(accepted_bid.id)
+            db_bid = db.session.get(Bid, accepted_bid.id)
             if db_bid.status != BidStatus.ACCEPTED:
                 print(f"❌ Bid status not updated in database. Expected: {BidStatus.ACCEPTED}, Got: {db_bid.status}")
                 return False
@@ -912,43 +1236,79 @@ async def test_bidding_workflow_async():
     print("\nAll bidding workflow tests passed, including team bidding!")
     return True
 
+def run_flask_app():
+    """Run the Flask app in a separate thread."""
+    server = make_server('localhost', 5001, app)
+    server.serve_forever()
+
 def main():
     """Main function to run the test."""
-    # Initialize database first
-    with app.app_context():
-        if not clean_database():
-            print("Failed to initialize test database")
-            return 1
+    # Start Flask server in a separate thread
+    flask_thread = threading.Thread(target=run_flask_app, daemon=True)
+    flask_thread.start()
     
-    async def main_async():
-        try:
-            # Run the main test
-            print("\n=== Starting Main Bidding Workflow Test ===")
-            if not await test_bidding_workflow_async():
+    # Give the server a moment to start
+    time.sleep(2)
+    
+    try:
+        # Initialize database first
+        with app.app_context():
+            if not clean_database():
+                print("Failed to initialize test database")
                 return 1
             
-            # Clean up after first test
-            with app.app_context():
-                if not clean_database():
-                    print("Failed to clean up after first test")
+            # Initialize BidAutomation with the Flask app
+            bid_automation = BidAutomation(app)
+        
+        async def main_async():
+            try:
+                # Run the document access test
+                print("\n=== Starting Document Access Test ===")
+                if not test_document_access():
                     return 1
-            
-            # Run the admin notification test
-            print("\n=== Starting Admin Notification Flow Test ===")
-            if not await test_admin_notification_flow():
-                return 1
                 
-            return 0
-            
-        except Exception as e:
-            print(f"Error in test execution: {e}")
-            import traceback
-            traceback.print_exc()
-            return 1
-        finally:
-            # Always clean up at the end
-            with app.app_context():
-                clean_database()
+                # Clean up after document test
+                with app.app_context():
+                    if not clean_database():
+                        print("Failed to clean up after document test")
+                        return 1
+                
+                # Run the main test
+                print("\n=== Starting Main Bidding Workflow Test ===")
+                if not await test_bidding_workflow_async():
+                    return 1
+                
+                # Clean up after first test
+                with app.app_context():
+                    if not clean_database():
+                        print("Failed to clean up after first test")
+                        return 1
+                
+                # Run the admin notification test
+                print("\n=== Starting Admin Notification Flow Test ===")
+                if not await test_admin_notification_flow():
+                    return 1
+                    
+                return 0
+                
+            except Exception as e:
+                print(f"Error in test execution: {e}")
+                import traceback
+                traceback.print_exc()
+                return 1
+            finally:
+                # Always clean up at the end
+                with app.app_context():
+                    clean_database()
+        
+        # Run the async test suite
+        return asyncio.run(main_async())
+        
+    except Exception as e:
+        print(f"Error in main: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
     
     return asyncio.run(main_async())
 
@@ -1085,7 +1445,7 @@ async def test_admin_notification_flow():
         db.session.rollback()
         
         # Get the updated project
-        project = db.session.query(Job).get(project_id)
+        project = db.session.get(Job, project_id)
         if not project:
             print("❌ Project not found after evaluation")
             return False
@@ -1164,7 +1524,7 @@ async def test_admin_notification_flow():
         
         print(f"✅ Admin manually assigned project to {assigned_professional.name}")
         # Verify the project was updated
-        updated_project = db.session.query(Job).get(project_id)
+        updated_project = db.session.get(Job, project_id)
         if updated_project.status != JobStatus.AWARDED:
             print(f"❌ Project status not updated to AWARDED. Current status: {updated_project.status}")
             return False

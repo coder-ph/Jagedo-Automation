@@ -3,20 +3,29 @@ import json
 import time
 from datetime import datetime, timedelta
 from sqlalchemy import and_
-from models import db, Job, Bid, Notification, JobStatus, BidStatus, User, UserRole
-from app import app
+from flask import current_app
+from app.extensions import db
+from app.models import Job, Bid, Notification, JobStatus, BidStatus, User, UserRole
 import threading
-        
 
 class BidAutomation:
-    def __init__(self, min_bids=5, evaluation_period_hours=24):
-       
+    def __init__(self, app=None, min_bids=5, evaluation_period_hours=24):
+        self.app = app
         self.min_bids = min_bids
         self.evaluation_period = timedelta(hours=evaluation_period_hours)
-        self.min_winning_score = 60  
+        self.min_winning_score = 60
+        
+        if app is not None:
+            self.init_app(app)
+    
+    def init_app(self, app):
+        """Initialize with application context."""
+        self.app = app
+        with app.app_context():
+            db.create_all()
 
     def handle_new_bid(self, bid_id):
-        with app.app_context():
+        with self.app.app_context():
             try:
                 bid = db.session.get(Bid, bid_id)
                 if not bid:
