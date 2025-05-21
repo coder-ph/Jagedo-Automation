@@ -39,10 +39,16 @@ class User(db.Model):
     total_bids = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
 
-    jobs = db.relationship('Job', backref='customer')
-    bids = db.relationship('Bid', backref='professional')
-    skills = db.relationship('ProfessionalSkill', backref='professional')
-    notifications = db.relationship('Notification', backref='user', lazy=True)
+    # Relationships where user is the customer
+    jobs = db.relationship('Job', foreign_keys='Job.customer_id', backref=db.backref('customer', lazy='joined'))
+    
+    # Relationships where user is the professional
+    bids = db.relationship('Bid', backref=db.backref('professional', lazy='joined'))
+    skills = db.relationship('ProfessionalSkill', backref=db.backref('professional', lazy='joined'))
+    notifications = db.relationship('Notification', backref=db.backref('user', lazy='joined'))
+    
+    # Relationships where user is the assigned contractor
+    assigned_jobs = db.relationship('Job', foreign_keys='Job.assigned_contractor_id', backref=db.backref('assigned_contractor', lazy='joined'))
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -65,11 +71,23 @@ class Job(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     location = db.Column(db.String(255), nullable=False)
     status = db.Column(db.Enum(JobStatus), default=JobStatus.OPEN, nullable=False)
+    assigned_contractor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     budget = db.Column(db.Numeric(10, 2), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    category = db.relationship('Category', backref='jobs')
-    bids = db.relationship('Bid', backref='job')
+    # Relationships
+    category = db.relationship('Category', backref=db.backref('jobs', lazy=True))
+    bids = db.relationship('Bid', backref=db.backref('job', lazy='joined'), 
+                          foreign_keys='Bid.job_id')
+    job_documents = db.relationship('Attachment', 
+                                  foreign_keys='Attachment.job_id',
+                                  backref=db.backref('job_doc', lazy='joined'),
+                                  lazy=True)
+    reviews = db.relationship('Review', 
+                            foreign_keys='Review.job_id',
+                            backref=db.backref('job', lazy='joined'),
+                            lazy=True)
 
 class Bid(db.Model):
     __tablename__ = 'bids'
@@ -85,6 +103,14 @@ class Bid(db.Model):
     location_score = db.Column(db.Float, nullable=True)
     location_match_type = db.Column(db.String(50), nullable=True)
 
+    # Relationships
+    job_rel = db.relationship('Job', foreign_keys=[job_id], back_populates='bids')
+    professional_rel = db.relationship('User', foreign_keys=[professional_id])
+    bid_related_attachments = db.relationship('Attachment', 
+                                           foreign_keys='Attachment.bid_id',
+                                           backref=db.backref('related_bid', lazy='joined'),
+                                           lazy=True)
+    
     __table_args__ = (
         db.UniqueConstraint('job_id', 'professional_id', name='uq_job_professional'),
     )
@@ -145,10 +171,15 @@ class Attachment(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
-
     job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'))
     bid_id = db.Column(db.Integer, db.ForeignKey('bids.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Relationships
+    uploader = db.relationship('User', foreign_keys=[uploaded_by], backref=db.backref('uploaded_attachments', lazy=True))
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('user_attachments', lazy=True))
+    job_rel = db.relationship('Job', foreign_keys=[job_id], backref=db.backref('job_attachments', lazy=True))
+    bid_rel = db.relationship('Bid', foreign_keys=[bid_id], backref=db.backref('bid_attachments', lazy=True))
 
 class Notification(db.Model):
     __tablename__ = 'notifications'

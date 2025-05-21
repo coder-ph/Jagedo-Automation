@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime, timedelta
-from models import db, User, UserRole, BidStatus, JobStatus, Message, Attachment as Document, Job, Bid, Notification
+from models import db, User, UserRole, BidStatus, JobStatus, Message, Attachment, Job, Bid, Notification
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
@@ -267,30 +267,54 @@ def location_match_score(client_location, contractor_location):
     return 0.0, 'no_match'
 
 def calculate_bid_score(bid):
-    # Use the professional relationship instead of contractor
+    """
+    Calculate a detailed score for a bid based on various factors
+    Returns:
+        tuple: (total_score, score_details) where score_details is a dict with detailed breakdown
+    """
+    # Initialize score details
+    score_details = {
+        'nca_score': 0,
+        'rating_score': 0,
+        'success_score': 0,
+        'location_score': 0,
+        'location_match_type': None,
+        'total_score': 0
+    }
+    
+    # Get professional details
     professional = bid.professional
+    if not professional:
+        return 0, score_details
     
     # NCA Level: 40 points max (1-8 scale)
     nca_score = (professional.nca_level / 8) * 40
+    score_details['nca_score'] = round(nca_score, 2)
     
     # Rating: 25 points max (0-5 scale)
-    # The rating is already on a 5-point scale, so we just multiply by 5 to get to 25 points
     rating_score = (professional.average_rating * 5) if professional.average_rating is not None else 0
+    score_details['rating_score'] = round(rating_score, 2)
     
     # Success Rate: 15 points max (based on successful_bids / total_bids)
     success_rate = 0
     if professional.total_bids > 0:
         success_rate = (professional.successful_bids / professional.total_bids) * 100
     success_score = (success_rate / 100) * 15
+    score_details['success_score'] = round(success_score, 2)
+    score_details['success_rate'] = f"{success_rate:.1f}%"
     
     # Location Score: 20 points max (0-1 scale)
     location_score = (bid.location_score or 0) * 20
+    location_match_type = getattr(bid, 'location_match_type', 'no_match')
+    score_details['location_score'] = round(location_score, 2)
+    score_details['location_match_type'] = location_match_type
     
-    # Calculate total score (max 100 points)
-    total_score = nca_score + rating_score + success_score + location_score
+    # Calculate and round total score (max 100 points)
+    total_score = max(0, min(100, nca_score + rating_score + success_score + location_score))
+    score_details['total_score'] = round(total_score, 2)
     
-    # Ensure score is between 0 and 100
-    return max(0, min(100, total_score))
+    # Return both the total score and the detailed breakdown
+    return total_score, score_details
 
 def select_winning_bid(project_id):
     """
@@ -712,58 +736,149 @@ def test():
 @jwt_required()
 def get_project(project_id):
     try:
-        project = Job.query.get_or_404(project_id)
-        current_user = get_current_user()
+        app.logger.info(f"[GET /api/projects/{project_id}] Fetching project...")
         
-        # Check if user has access to this project
-        has_access = (
-            current_user.role == UserRole.ADMIN or
-            project.customer_id == current_user.id or
-            (project.assigned_contractor_id and project.assigned_contractor_id == current_user.id)
-        )
-        
-        if not has_access:
+        try:
+            project = Job.query.get(project_id)
+            if not project:
+                app.logger.error(f"[GET /api/projects/{project_id}] Project not found")
+                return jsonify({
+                    'success': False,
+                    'message': 'Project not found'
+                }), 404
+                
+            current_user = get_current_user()
+            app.logger.info(f"[GET /api/projects/{project_id}] Current user: {current_user.id} (Role: {current_user.role})")
+            
+            # Check if user has access to this project
+            has_access = (
+                current_user.role == UserRole.ADMIN or
+                project.customer_id == current_user.id or
+                (project.assigned_contractor_id and project.assigned_contractor_id == current_user.id)
+            )
+            
+            if not has_access:
+                app.logger.warning(f"[GET /api/projects/{project_id}] Access denied for user {current_user.id}")
+                return jsonify({
+                    'success': False,
+                    'message': 'You do not have permission to view this project'
+                }), 403
+            
+            app.logger.info(f"[GET /api/projects/{project_id}] User has access. Preparing response...")
+            
+            # Get project documents with access check
+            documents = []
+            try:
+                if hasattr(project, 'documents') and project.documents:
+                    for doc in project.documents:
+                        try:
+                            has_access, reason = has_document_access(current_user.id, doc)
+                            app.logger.info(f"[GET /api/projects/{project_id}] Document {doc.id} access: {has_access} ({reason})")
+                            if has_access:
+                                documents.append({
+                                    'id': doc.id,
+                                    'name': doc.filename,
+                                    'url': f'/api/documents/{doc.id}/download',
+                                    'uploaded_at': doc.uploaded_at.isoformat() if doc.uploaded_at else None
+                                })
+                        except Exception as doc_e:
+                            app.logger.error(f"[GET /api/projects/{project_id}] Error processing document {getattr(doc, 'id', 'unknown')}: {str(doc_e)}")
+                else:
+                    app.logger.info(f"[GET /api/projects/{project_id}] No documents found for project")
+            except Exception as docs_e:
+                app.logger.error(f"[GET /api/projects/{project_id}] Error fetching documents: {str(docs_e)}")
+                documents = []
+            
+            # Prepare project data
+            project_data = {
+                'id': project.id,
+                'title': project.title,
+                'description': project.description,
+                'status': project.status.value,
+                'created_at': project.created_at.isoformat() if project.created_at else None,
+                'category_id': project.category_id,
+                'location': project.location,
+                'customer_id': project.customer_id,
+                'assigned_contractor_id': project.assigned_contractor_id,
+                'documents': documents
+            }
+            
+            # Only include budget and bids for the project owner or admin
+            if current_user.role in [UserRole.ADMIN, UserRole.CUSTOMER] and project.customer_id == current_user.id:
+                project_data['budget'] = float(project.budget) if project.budget else None
+                
+                # Get bids with detailed information including attachments
+                bids = Bid.query.filter_by(job_id=project.id).all()
+                project_data['bids'] = []
+                
+                for bid in bids:
+                    # Get bid attachments
+                    bid_attachments = []
+                    if hasattr(bid, 'bid_related_attachments') and bid.bid_related_attachments:
+                        for doc in bid.bid_related_attachments:
+                            try:
+                                has_access, reason = has_document_access(current_user.id, doc)
+                                if has_access:
+                                    bid_attachments.append({
+                                        'id': doc.id,
+                                        'name': doc.filename,
+                                        'url': f'/api/documents/{doc.id}/download',
+                                        'uploaded_at': doc.uploaded_at.isoformat() if doc.uploaded_at else None
+                                    })
+                            except Exception as doc_e:
+                                app.logger.error(f"[GET /api/projects/{project_id}] Error processing bid document {getattr(doc, 'id', 'unknown')}: {str(doc_e)}")
+                    
+                    # Include professional details with the bid
+                    professional = User.query.get(bid.professional_id)
+                    professional_data = None
+                    if professional:
+                        professional_data = {
+                            'id': professional.id,
+                            'name': professional.name,
+                            'company_name': professional.company_name,
+                            'average_rating': float(professional.average_rating) if professional.average_rating else None,
+                            'total_ratings': professional.total_ratings,
+                            'successful_bids': professional.successful_bids,
+                            'total_bids': professional.total_bids
+                        }
+                    
+                    # Calculate bid score if needed
+                    score, score_details = calculate_bid_score(bid)
+                    
+                    project_data['bids'].append({
+                        'id': bid.id,
+                        'professional': professional_data,
+                        'amount': float(bid.amount) if bid.amount else None,
+                        'proposal': bid.proposal,
+                        'timeline_weeks': bid.timeline_weeks,
+                        'status': bid.status.value,
+                        'score': float(score) if score is not None else None,
+                        'score_details': score_details,
+                        'attachments': bid_attachments,
+                        'created_at': bid.created_at.isoformat() if bid.created_at else None
+                    })
+            
+            app.logger.info(f"[GET /api/projects/{project_id}] Successfully prepared response")
+            return jsonify({
+                'success': True,
+                'data': project_data
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[GET /api/projects/{project_id}] Error: {str(e)}", exc_info=True)
             return jsonify({
                 'success': False,
-                'message': 'You do not have permission to view this project'
-            }), 403
-        
-        # Prepare project data
-        project_data = {
-            'id': project.id,
-            'title': project.title,
-            'description': project.description,
-            'status': project.status.value,
-            'created_at': project.created_at.isoformat() if project.created_at else None,
-            'category_id': project.category_id,
-            'location': project.location,
-            'customer_id': project.customer_id,
-            'assigned_contractor_id': project.assigned_contractor_id
-        }
-        
-        # Only include budget and bids for the project owner or admin
-        if current_user.role in [UserRole.ADMIN, UserRole.CUSTOMER] and project.customer_id == current_user.id:
-            project_data['budget'] = str(project.budget)
+                'message': 'Failed to fetch project details',
+                'error': str(e)
+            }), 500
             
-            # Include all bids for the project owner
-            bids_data = []
-            for bid in project.bids:
-                bid_data = {
-                    'id': bid.id,
-                    'amount': str(bid.amount),
-                    'status': bid.status.value,
-                    'created_at': bid.created_at.isoformat() if bid.created_at else None,
-                    'professional_id': bid.professional_id,
-                    'professional_name': bid.professional.name if bid.professional else None
-                }
-                bids_data.append(bid_data)
-            
-            project_data['bids'] = bids_data
-        
+    except Exception as e:
+        app.logger.error(f"[GET /api/projects/{project_id}] Unexpected error: {str(e)}", exc_info=True)
         return jsonify({
-            'success': True,
-            'data': project_data
-        })
+            'success': False,
+            'message': 'An unexpected error occurred',
+            'error': str(e)
+        }), 500
         
     except Exception as e:
         return jsonify({
@@ -776,7 +891,14 @@ def get_project(project_id):
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
 def create_project():
     try:
-        data = validate_json()
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            files = request.files.getlist('files') if 'files' in request.files else []
+        else:
+            data = request.form.to_dict()
+            files = request.files.getlist('files')
+            
         required_fields = ['title', 'description', 'budget', 'location', 'category_id']
         validate_required_fields(data, required_fields)
         
@@ -792,23 +914,44 @@ def create_project():
         )
         
         db.session.add(project)
+        db.session.flush()  # Get the project ID before commit
+        
+        # Handle file uploads
+        if files:
+            file_handler = FileHandler()
+            for file in files:
+                if file and file.filename != '':
+                    # save_file returns (filename, filepath) but we only need filepath
+                    _, file_path = file_handler.save_file(file, project.id)
+                    document = Attachment(
+                        job_id=project.id,
+                        filename=file.filename,
+                        file_url=file_path,  # Use the file_path from save_file
+                        uploaded_by=current_user.id,
+                        user_id=current_user.id
+                    )
+                    db.session.add(document)
+        
         db.session.commit()
         
-        # TODO: Add file attachment handling
-        # TODO: Trigger contractor matching
+        # Trigger contractor matching (if implemented)
+        # find_matching_contractors(project.id)
         
         return jsonify({
             'success': True,
             'message': 'Project created successfully',
             'data': {
-                'project_id': project.id
+                'project_id': project.id,
+                'file_count': len(files)
             }
         }), 201
         
     except ValueError as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error creating project: {str(e)}")
         return jsonify({'success': False, 'message': 'Failed to create project'}), 500
     
 def has_document_access(user_id, document):
@@ -826,30 +969,37 @@ def has_document_access(user_id, document):
         if document.uploaded_by == user_id:
             return True, "Document owner"
             
-        # Project participants can access project documents
-        if document.project_id:
-            project = Job.query.get(document.project_id)
-            if not project:
-                return False, "Project not found"
-                
-            # Project owner can access all project documents
-            if project.customer_id == user_id:
-                return True, "Project owner"
-                
-            # Assigned contractor can access project documents
-            if project.assigned_contractor_id == user_id:
-                return True, "Assigned contractor"
+        # Get the project this document belongs to
+        project = Job.query.get(document.project_id)
+        if not project:
+            return False, "Project not found"
+            
+        # Project owner can access all documents
+        if project.customer_id == user_id:
+            return True, "Project owner"
+            
+        # If project is open, any professional can access documents when bidding
+        if project.status == JobStatus.OPEN and user.role == UserRole.PROFESSIONAL:
+            # Check if user has a bid on this project (pending or otherwise)
+            bid = Bid.query.filter_by(
+                project_id=document.project_id,
+                professional_id=user_id
+            ).first()
+            
+            if bid:
+                return True, "Project bidder"
+            
+            # Allow access to all professionals during bidding phase
+            return True, "Professional access during bidding"
+            
+        # After project is awarded, only the winning contractor has access
+        if project.status == JobStatus.AWARDED and project.assigned_contractor_id == user_id:
+            return True, "Winning contractor"
         
-        # Bid documents can be accessed by the bid owner
-        if document.bid_id:
-            bid = Bid.query.get(document.bid_id)
-            if bid and bid.professional_id == user_id:
-                return True, "Bid owner"
-                
-        return False, "Access denied"
+        return False, "No access rights"
         
     except Exception as e:
-        print(f"Error checking document access: {e}")
+        app.logger.error(f"Error checking document access: {str(e)}")
         return False, "Error checking access"
 
 @app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
