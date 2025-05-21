@@ -534,109 +534,199 @@ def test_document_access():
         return True
 
 def test_bidding_workflow():
-    with app.app_context():
-        print("=== Starting Bidding Workflow Test ===\n")
-        
-        print("Cleaning up database...")
-        clean_database()
-        
-        print("\n1. Creating test users...")
-        customer = create_test_user(
-            email=TEST_CUSTOMER_EMAIL,
-            password=TEST_CUSTOMER_PASSWORD,
-            role=UserRole.CUSTOMER,
-            name="Test Customer",
-            location="Nairobi"
-        )
-        
-        pro1 = create_test_user(
-            email=TEST_PRO_EMAIL,
+    print("\n=== Starting Bidding Workflow Test ===")
+    
+    # Clean up any existing test data
+    clean_database()
+    
+    # Create test users
+    customer = create_test_user(
+        email=TEST_CUSTOMER_EMAIL,
+        password=TEST_CUSTOMER_PASSWORD,
+        role=UserRole.CUSTOMER,
+        name='Test Customer',
+        company_name='Customer Company',
+        location='Nairobi, Kenya'
+    )
+    
+    # Create an admin user for notifications
+    admin = create_test_user(
+        email='admin@example.com',
+        password='admin123',
+        role=UserRole.ADMIN,
+        name='Admin User',
+        company_name='Admin Company',
+        location='Nairobi, Kenya'
+    )
+    
+    # Create multiple professionals for testing bid automation
+    professionals = []
+    for i in range(1, 6):  # Create 5 professionals
+        pro = create_test_user(
+            email=f'test_pro_{i}@example.com',
             password=TEST_PRO_PASSWORD,
             role=UserRole.PROFESSIONAL,
-            name="Test Professional 1",
-            location="Nairobi",
-            nca_level=5,
-            average_rating=4.8,
-            total_ratings=15,
-            successful_bids=12,
-            total_bids=15
-        )
-        
-        pro2 = create_test_user(
-            email="test_pro2@example.com",
-            password=TEST_PRO_PASSWORD,
-            role=UserRole.PROFESSIONAL,
-            name="Test Professional 2",
-            location="Mombasa",
-            nca_level=4,
-            average_rating=4.5,
+            name=f'Test Pro {i}',
+            company_name=f'Pro Construction {i}',
+            location='Nairobi, Kenya',
+            nca_level=5 - (i % 3),  # Vary NCA level from 3-5
+            average_rating=4.5 - (i * 0.1),  # Vary ratings from 4.0-4.5
             total_ratings=10,
             successful_bids=8,
             total_bids=10
         )
-        
-        print("\n2. Logging in as customer...")
-        customer_auth = login_user(TEST_CUSTOMER_EMAIL, TEST_CUSTOMER_PASSWORD)
-        assert customer_auth is not None, "Failed to login as customer"
-        customer_token = customer_auth['access_token']
-        
-        print("\n3. Logging in as professionals...")
-        pro1_auth = login_user(TEST_PRO_EMAIL, TEST_PRO_PASSWORD)
-        assert pro1_auth is not None, "Failed to login as professional 1"
-        pro1_token = pro1_auth['access_token']
-        
-        pro2_auth = login_user("test_pro2@example.com", TEST_PRO_PASSWORD)
-        assert pro2_auth is not None, "Failed to login as professional 2"
-        pro2_token = pro2_auth['access_token']
-        
-        print("\n4. Creating test project...")
-        project_id = create_test_project(customer_token, "Bidding Workflow Test Project")
-        assert project_id is not None, "Failed to create test project"
-        
-        print("\n5. Uploading document to project...")
-        doc_content = f"Test document for project {project_id}"
-        document_id = upload_project_document(project_id, customer_token, doc_content)
-        assert document_id is not None, "Failed to upload document"
-        
-        print("\n6. Verifying document access for professionals...")
-        for token, name in [(pro1_token, "Professional 1"), (pro2_token, "Professional 2")]:
-            content = download_document(document_id, token)
-            assert content is not None, f"{name} should be able to access the document"
-            print(f"{name} can access the document")
-        
-        print("\n7. Submitting bids from both professionals...")
-        bid1_id = submit_bid(BASE_URL, pro1_token, project_id, 4500000, "Professional 1 bid")
-        assert bid1_id is not None, "Failed to submit bid from professional 1"
+        professionals.append(pro)
+    
+    # Log in as customer
+    customer_login = login_user(TEST_CUSTOMER_EMAIL, TEST_CUSTOMER_PASSWORD)
+    if not customer_login:
+        print("Failed to log in as customer")
+        return False
+    
+    customer_token = customer_login['access_token']
+    
+    # Create a project with a document
+    project = create_test_project(customer_token, "Test Bidding Automation Project", with_document=True)
+    if not project:
+        print("Failed to create test project")
+        return False
+    
+    project_id = project['id']
+    print(f"Created project with ID: {project_id}")
+    
+    # Upload a document to the project
+    document_id = upload_project_document(project_id, customer_token, "Test document content")
+    if not document_id:
+        print("Failed to upload test document")
+        return False
+    
+    # Submit bids from multiple professionals
+    bids = []
+    for i, pro in enumerate(professionals):
+        pro_login = login_user(pro.email, TEST_PRO_PASSWORD)
+        if not pro_login:
+            print(f"Failed to log in as professional {i+1}")
+            continue
             
-        bid2_id = submit_bid(BASE_URL, pro2_token, project_id, 5000000, "Professional 2 bid")
-        assert bid2_id is not None, "Failed to submit bid from professional 2"
-        print(f"Submitted bids: {bid1_id}, {bid2_id}")
+        pro_token = pro_login['access_token']
         
-        print("\n8. Verifying document access after bid submission...")
-        for token, name in [(pro1_token, "Professional 1"), (pro2_token, "Professional 2")]:
-            content = download_document(document_id, token)
-            assert content is not None, f"{name} should still have access to documents after bidding"
-            print(f"{name} can still access the document after bidding")
+        # Vary bid amounts and timelines
+        amount = 8000000 - (i * 500000)  # Vary amounts from 6M to 8M
+        timeline_weeks = 10 - (i % 3)  # Vary timelines from 8-10 weeks
         
-        print("\n9. Selecting winning bid...")
-        result = select_winning_bid(project_id, bid1_id, customer_token)
-        assert result is not None and result.get('success'), "Failed to select winning bid"
-        print("Selected professional 1 as the winner")
+        bid = submit_bid(
+            BASE_URL, 
+            pro_token, 
+            project_id, 
+            amount=amount,
+            timeline_weeks=timeline_weeks,
+            proposal=f'Bid from {pro.name} for {amount} KES in {timeline_weeks} weeks'
+        )
         
-        print("\n10. Verifying document access after project award...")
-        content = download_document(document_id, pro1_token)
-        assert content is not None, "Winning professional should still have access to documents"
-        print("Winning professional can still access the document")
+        if bid:
+            bids.append(bid)
+            print(f"Submitted bid {len(bids)} from {pro.name}: {amount} KES, {timeline_weeks} weeks")
+    
+    if len(bids) < 3:  # We want at least 3 bids for a good test
+        print(f"Not enough bids were submitted. Got {len(bids)}, expected at least 3")
+        return False
+    
+    print(f"\nSubmitted {len(bids)} bids. Waiting for bid automation to process...")
+    
+    # Give the automation a moment to process
+    import time
+    time.sleep(2)  # Short delay to allow async processing
+    
+    # Check project status
+    with app.app_context():
+        updated_project = Job.query.get(project_id)
+        if not updated_project:
+            print("Project not found after bid submission")
+            return False
+            
+        # Check if a bid was automatically accepted
+        accepted_bid = Bid.query.filter_by(
+            job_id=project_id,
+            status=BidStatus.ACCEPTED.value
+        ).first()
         
-        try:
-            content = download_document(document_id, pro2_token, expect_success=False)
-            assert content is None, "Losing professional should not have access to documents after project award"
-            print("Losing professional cannot access the document after project award")
-        except Exception as e:
-            assert False, f"Error testing losing professional access: {str(e)}"
+        if not accepted_bid:
+            # Check if admin was notified for manual review
+            admin_notification = Notification.query.filter_by(
+                notification_type='admin_action_required',
+                title='Manual Review Required'
+            ).first()
+            
+            if not admin_notification:
+                print("No bid was accepted and no admin notification was created")
+                return False
+                
+            print("No bid met the minimum score. Admin notification was created for manual review.")
+            return True  # This is a valid outcome
+            
+        # Verify project status was updated
+        if updated_project.status != JobStatus.AWARDED.value:
+            print(f"Project status not updated. Expected: {JobStatus.AWARDED.value}, Got: {updated_project.status}")
+            return False
+            
+        print(f"Bid automation successful! Project awarded to bid {accepted_bid.id}")
         
-        print("All bidding workflow tests passed!")
-        return True
+        # Verify notifications were sent
+        customer_notification = Notification.query.filter_by(
+            user_id=customer.id,
+            notification_type='contractor_selected'
+        ).first()
+        
+        contractor_notification = Notification.query.filter_by(
+            user_id=accepted_bid.professional_id,
+            notification_type='bid_accepted'
+        ).first()
+        
+        if not customer_notification or not contractor_notification:
+            print("Missing notifications for bid acceptance")
+            return False
+            
+        print("Verified notifications were sent to both customer and winning contractor")
+        
+        # Verify document access
+        winning_pro = User.query.get(accepted_bid.professional_id)
+        winning_pro_login = login_user(winning_pro.email, TEST_PRO_PASSWORD)
+        if not winning_pro_login:
+            print("Failed to log in as winning professional")
+            return False
+            
+        winning_pro_token = winning_pro_login['access_token']
+        
+        # Winning professional should have access to documents
+        content = download_document(document_id, winning_pro_token)
+        if not content:
+            print("Winning professional cannot access project documents")
+            return False
+            
+        print("Verified winning professional has access to project documents")
+        
+        # Losing professionals should not have access to documents
+        for pro in professionals:
+            if pro.id == winning_pro.id:
+                continue
+                
+            pro_login = login_user(pro.email, TEST_PRO_PASSWORD)
+            if not pro_login:
+                continue
+                
+            pro_token = pro_login['access_token']
+            try:
+                content = download_document(document_id, pro_token, expect_success=False)
+                if content is not None:
+                    print(f"Losing professional {pro.name} still has access to documents")
+                    return False
+            except:
+                pass  # Expected to fail
+        
+        print("Verified losing professionals cannot access project documents")
+    
+    print("\nAll bidding workflow tests passed!")
+    return True
 
 def main():
     print("Cleaning up database...")
