@@ -134,28 +134,78 @@ def create_jobs(num_jobs=20):
     db.session.commit()
 
 def create_bids():
-    jobs = Job.query.all()
-    for job in jobs:
-        skills_in_category = Skill.query.filter_by(category_id=job.category_id).all()
-        if not skills_in_category:
+    # Get all professionals
+    all_professionals = User.query.filter_by(role=UserRole.PROFESSIONAL).all()
+    
+    for job in Job.query.filter(Job.status == JobStatus.OPEN).all():
+        # Get the category and its subcategories
+        category = Category.query.get(job.category_id)
+        if not category:
+            print(f"Job {job.id} has no valid category, skipping...")
             continue
-        pro_skills = ProfessionalSkill.query.filter(ProfessionalSkill.skill_id.in_([s.id for s in skills_in_category])).all()
-        professionals = list({ps.professional_id for ps in pro_skills})
-        if not professionals:
+            
+        # Get all subcategory IDs (including the category itself if it has no parent)
+        if category.parent_id is None:
+            # This is a parent category, get all its subcategories
+            subcategory_ids = [c.id for c in category.children]
+        else:
+            # This is already a subcategory
+            subcategory_ids = [category.id]
+            
+        if not subcategory_ids:
+            print(f"No subcategories found for job {job.id} in category {category.name}, skipping...")
             continue
-        num_bids = min(3, len(professionals))
-        selected_pros = random.sample(professionals, num_bids)
-        for pro_id in selected_pros:
+            
+        # Get all skills in these categories
+        job_skills = Skill.query.filter(Skill.category_id.in_(subcategory_ids)).all()
+        
+        # Get professionals with matching skills
+        matching_professionals = []
+        if job_skills:
+            matching_professionals = db.session.query(User).join(
+                ProfessionalSkill, User.id == ProfessionalSkill.professional_id
+            ).filter(
+                ProfessionalSkill.skill_id.in_([s.id for s in job_skills]),
+                User.role == UserRole.PROFESSIONAL
+            ).distinct().all()
+        
+        # If no professionals with matching skills, use random professionals
+        if not matching_professionals and all_professionals:
+            print(f"No professionals with matching skills for job {job.id}, using random professionals")
+            matching_professionals = random.sample(all_professionals, min(3, len(all_professionals)))
+        
+        # Determine number of bids to create (1-3, but no more than available professionals)
+        num_bids = random.randint(1, min(3, len(matching_professionals)))
+        
+        # Create bids
+        for _ in range(num_bids):
+            if not matching_professionals:
+                break
+                
+            professional = random.choice(matching_professionals)
+            matching_professionals.remove(professional)
+            
+            # Convert Decimal to float for amount
+            max_bid = float(job.budget)
+            min_bid = max(100, max_bid * 0.5)  # Ensure minimum bid is reasonable
+            
+            # Create a reasonable bid amount (between 50% and 100% of job budget)
+            bid_amount = round(random.uniform(min_bid, max_bid), 2)
+            
             bid = Bid(
-                amount=fake.random_int(min=100, max=job.budget),
-                proposed_timeline=f"{random.randint(1, 12)} weeks",
-                status=random.choice([BidStatus.PENDING, BidStatus.PENDING, BidStatus.ACCEPTED, BidStatus.REJECTED]),
                 job_id=job.id,
-                professional_id=pro_id,
+                professional_id=professional.id,
+                amount=bid_amount,
+                proposal=f"I can complete this job for ${bid_amount}. {fake.paragraph()}",
+                timeline_weeks=random.randint(1, 12),
+                status=BidStatus.PENDING,  # Start all as pending for testing
                 created_at=fake.date_time_this_year()
             )
             db.session.add(bid)
+            print(f"Created bid for job {job.id} by professional {professional.id} for ${bid_amount}")
+    
     db.session.commit()
+    print("Finished creating bids")
 
 def create_reviews():
     completed_jobs = Job.query.filter_by(status=JobStatus.COMPLETED).all()
@@ -208,33 +258,111 @@ def create_attachments(num_attachments=30):
     jobs = Job.query.all()
     bids = Bid.query.all()
     users = User.query.all()
-    for _ in range(num_attachments):
-        attach_to = random.choice(['job', 'bid', 'user'])
-        job = random.choice(jobs) if attach_to in ['job', 'bid'] else None
-        bid = random.choice(bids) if attach_to == 'bid' else None
-        user = random.choice(users)
-        attachment = Attachment(
-            file_url=fake.image_url(),
-            uploaded_at=fake.date_time_this_year(),
-            job_id=job.id if job else None,
-            bid_id=bid.id if bid else None,
-            user_id=user.id
-        )
-        db.session.add(attachment)
-    db.session.commit()
+    
+    # Define some common file extensions
+    file_extensions = ['pdf', 'docx', 'jpg', 'png', 'txt']
+    
+    for _ in range(min(num_attachments, 30)):  # Limit to 30 attachments
+        try:
+            # Choose a random user to be the uploader
+            uploaded_by = random.choice(users)
+            
+            # Choose what to attach to (job, bid, or user profile)
+            attach_to = random.choice(['job', 'bid', 'user'])
+            job = random.choice(jobs) if attach_to in ['job', 'bid'] and jobs else None
+            bid = random.choice(bids) if attach_to == 'bid' and bids else None
+            
+            # If attaching to a bid, get the associated job and user
+            if bid:
+                job = Job.query.get(bid.job_id)
+                user = db.session.get(User, bid.professional_id)
+            elif job:
+                user = random.choice(users)
+            else:
+                user = random.choice(users)
+            
+            # Generate a realistic filename
+            file_ext = random.choice(file_extensions)
+            filename = f"{fake.word()}_{fake.random_int(1, 1000)}.{file_ext}"
+            
+            # Create the attachment
+            attachment = Attachment(
+                file_url=fake.image_url(),
+                uploaded_at=fake.date_time_this_year(),
+                uploaded_by=uploaded_by.id,
+                filename=filename,
+                job_id=job.id if job else None,
+                bid_id=bid.id if bid else None,
+                user_id=user.id
+            )
+            db.session.add(attachment)
+            db.session.flush()  # Flush to catch any integrity errors immediately
+            
+        except Exception as e:
+            print(f"Error creating attachment: {e}")
+            db.session.rollback()
+    
+    try:
+        db.session.commit()
+        print(f"Created {min(num_attachments, 30)} attachments")
+    except Exception as e:
+        print(f"Error committing attachments: {e}")
+        db.session.rollback()
 
 def create_notifications(num_notifications=100):
     users = User.query.all()
-    for _ in range(num_notifications):
-        user = random.choice(users)
-        notification = Notification(
-            content=fake.sentence(),
-            read=random.choice([True, False]),
-            user_id=user.id,
-            created_at=fake.date_time_this_year()
-        )
-        db.session.add(notification)
-    db.session.commit()
+    jobs = Job.query.all()
+    
+    notification_types = [
+        ('New Job Posted', 'A new job matching your skills has been posted!'),
+        ('Bid Accepted', 'Your bid has been accepted!'),
+        ('New Message', 'You have a new message'),
+        ('Job Completed', 'Your job has been marked as completed'),
+        ('Payment Received', 'Payment has been processed for your work'),
+        ('Profile Updated', 'Your profile has been updated successfully'),
+        ('New Review', 'You have received a new review'),
+        ('Reminder', 'Don\'t forget to complete your profile'),
+        ('System Update', 'New features available in your dashboard'),
+        ('Security Alert', 'New login detected on your account')
+    ]
+    
+    for _ in range(min(num_notifications, 100)):  # Limit to 100 notifications
+        try:
+            user = random.choice(users)
+            job = random.choice(jobs) if jobs and random.random() > 0.3 else None
+            
+            # Choose a random notification type
+            title, message_template = random.choice(notification_types)
+            
+            # Customize the message based on the title
+            if 'Job' in title and job:
+                message = f"{message_template}: {job.title}"
+            else:
+                message = message_template
+                
+            notification = Notification(
+                content=message,  # Update content field
+                read=random.choice([True, False]),
+                created_at=fake.date_time_this_year(),
+                user_id=user.id,
+                job_id=job.id if job else None,
+                title=title,
+                message=message,
+                notification_type=title.lower().replace(' ', '_')
+            )
+            db.session.add(notification)
+            db.session.flush()
+            
+        except Exception as e:
+            print(f"Error creating notification: {e}")
+            db.session.rollback()
+    
+    try:
+        db.session.commit()
+        print(f"Created {min(num_notifications, 100)} notifications")
+    except Exception as e:
+        print(f"Error committing notifications: {e}")
+        db.session.rollback()
 
 def main():
     with app.app_context():
