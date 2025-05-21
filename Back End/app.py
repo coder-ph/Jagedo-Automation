@@ -1049,7 +1049,7 @@ def create_project():
         app.logger.error(f"Error creating project: {str(e)}")
         return jsonify({'success': False, 'message': 'Failed to create project'}), 500
     
-def has_document_access(user_id, document):
+def has_document_access(user_id, attachment):
     """Check if a user has access to a document"""
     try:
         user = User.query.get(user_id)
@@ -1061,11 +1061,11 @@ def has_document_access(user_id, document):
             return True, "Admin access"
             
         # Document uploader can access their own documents
-        if document.uploaded_by == user_id:
+        if attachment.uploaded_by == user_id:
             return True, "Document owner"
             
         # Get the project this document belongs to
-        project = Job.query.get(document.project_id)
+        project = Job.query.get(attachment.job_id)
         if not project:
             return False, "Project not found"
             
@@ -1077,7 +1077,7 @@ def has_document_access(user_id, document):
         if project.status == JobStatus.OPEN and user.role == UserRole.PROFESSIONAL:
             # Check if user has a bid on this project (pending or otherwise)
             bid = Bid.query.filter_by(
-                project_id=document.project_id,
+                job_id=attachment.job_id,
                 professional_id=user_id
             ).first()
             
@@ -1103,18 +1103,24 @@ def has_document_access(user_id, document):
 def list_project_documents(project):
     """List all documents for a project"""
     try:
-        documents = Document.query.filter_by(project_id=project.id).all()
+        attachments = Attachment.query.filter_by(job_id=project.id).all()
         current_user = get_current_user()
         
-        result = [{
-            'id': doc.id,
-            'filename': doc.filename,
-            'uploaded_at': doc.uploaded_at.isoformat(),
-            'uploaded_by': doc.uploaded_by,
-            'file_type': FileHandler.get_mime_type(doc.filename),
-            'size': os.path.getsize(doc.filepath) if os.path.exists(doc.filepath) else 0,
-            'is_owner': doc.uploaded_by == current_user.id
-        } for doc in documents]
+        result = []
+        for attachment in attachments:
+            file_path = attachment.file_url
+            file_exists = os.path.exists(file_path)
+            
+            result.append({
+                'id': attachment.id,
+                'filename': attachment.filename,
+                'uploaded_at': attachment.uploaded_at.isoformat(),
+                'uploaded_by': attachment.uploaded_by,
+                'file_type': FileHandler.get_mime_type(attachment.filename),
+                'size': os.path.getsize(file_path) if file_exists else 0,
+                'is_owner': attachment.uploaded_by == current_user.id,
+                'file_url': f'/api/documents/{attachment.id}'
+            })
         
         return jsonify({
             'success': True,
@@ -1122,29 +1128,30 @@ def list_project_documents(project):
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error listing project documents: {str(e)}")
+        return jsonify({'error': 'Failed to list project documents'}), 500
     
 @app.route('/api/documents/<int:document_id>', methods=['GET'])
 @jwt_required()
 def download_document(document_id):
     """Download a document"""
     try:
-        document = Document.query.get_or_404(document_id)
+        attachment = Attachment.query.get_or_404(document_id)
         current_user = get_current_user()
         
-        # Check document access
-        has_access, message = has_document_access(current_user.id, document)
+        # Check document access - we'll need to update has_document_access to work with Attachment
+        has_access, message = has_document_access(current_user.id, attachment)
         if not has_access:
             return jsonify({'error': message}), 403
     
-        if not os.path.exists(document.filepath):
+        if not os.path.exists(attachment.file_url):
             return jsonify({'error': 'File not found'}), 404
    
         return send_file(
-            document.filepath,
+            attachment.file_url,
             as_attachment=True,
-            download_name=document.filename,
-            mimetype=FileHandler.get_mime_type(document.filename)
+            download_name=attachment.filename,
+            mimetype=FileHandler.get_mime_type(attachment.filename)
         )
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1154,16 +1161,16 @@ def download_document(document_id):
 def delete_document(document_id):
    
     try:
-        document = Document.query.get_or_404(document_id)
+        attachment = Attachment.query.get_or_404(document_id)
         current_user = get_current_user()
         
-        if document.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
+        if attachment.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
             return jsonify({'error': 'Access denied'}), 403
         
-        if os.path.exists(document.filepath):
-            os.remove(document.filepath)
+        if os.path.exists(attachment.file_url):
+            os.remove(attachment.file_url)
         
-        db.session.delete(document)
+        db.session.delete(attachment)
         db.session.commit()
         
         return jsonify({
@@ -1370,58 +1377,60 @@ def upload_document(project):
         filename, filepath = FileHandler.save_file(file, project.id)
         current_user = get_current_user()
         
-        document = Document(
-            project_id=project.id,
+        attachment = Attachment(
+            file_url=filepath,
             filename=filename,
-            filepath=filepath,
-            uploaded_by=current_user.id
+            uploaded_by=current_user.id,
+            user_id=current_user.id,
+            job_id=project.id
         )
-        db.session.add(document)
+        db.session.add(attachment)
         db.session.commit()
         
         # Notify relevant users
-        notify_document_upload(document)
+        notify_document_upload(attachment)
         
         return jsonify({
             'success': True,
             'message': 'File uploaded successfully',
-            'document_id': document.id
+            'document_id': attachment.id
         }), 201
         
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-def notify_document_upload(document):
+def notify_document_upload(attachment):
     """Notify relevant users about a new document upload"""
     try:
-        project = document.project
-        uploader = User.query.get(document.uploaded_by)
-        current_user = get_current_user()
+        project = Job.query.get(attachment.job_id)
+        uploader = User.query.get(attachment.uploaded_by)
         
-        # Determine who to notify
-        recipient_ids = set()
-        
-        # Notify project owner if not the uploader
-        if project.customer_id != document.uploaded_by:
-            recipient_ids.add(project.customer_id)
+        if not project:
+            app.logger.error(f"Project not found for attachment {attachment.id}")
+            return
             
-        # Notify assigned contractor if exists and not the uploader
-        if project.assigned_contractor_id and project.assigned_contractor_id != document.uploaded_by:
-            recipient_ids.add(project.assigned_contractor_id)
+        # Notify the project owner if someone else uploaded the document
+        if project.customer_id != uploader.id:
+            send_notification(
+                project.customer_id,
+                "New Document Uploaded",
+                f"{uploader.name} has uploaded a new document to your project: {project.title}",
+                "document_upload"
+            )
         
-        # Send notifications
-        for recipient_id in recipient_ids:
-            if recipient_id != current_user.id:  # Don't notify self
-                NotificationService.send(
-                    recipient_id,
-                    "New Document Uploaded",
-                    f"User {uploader.first_name} {uploader.last_name} uploaded a new document to project {project.title}",
-                    "document_upload"
+        # Notify all bidders about the new document
+        for bid in project.bids:
+            if bid.professional_id != uploader.id:  # Don't notify the uploader
+                send_notification(
+                    bid.professional_id,
+                    "New Project Document",
+                    f"A new document has been uploaded to the project: {project.title}",
+                    "project_update"
                 )
                 
     except Exception as e:
-        print(f"Error in notify_document_upload: {e}")
+        app.logger.error(f"Error in notify_document_upload: {str(e)}")
         return False
 
 @app.route('/api/projects/<int:project_id>/bid-scores', methods=['GET'])
@@ -1499,6 +1508,168 @@ def send_email(to, subject, body):
 def send_sms(to, message):
     print(f"[MOCK] SMS sent to {to}: {message}")
     return True
+
+# Google Places API integration
+def get_place_autocomplete(query, session_token=None, location=None, radius=50000, language='en'):
+    """
+    Get place autocomplete predictions from Google Places API
+    
+    Args:
+        query (str): The search query
+        session_token (str, optional): Session token for billing
+        location (str, optional): lat,lng for biasing results
+        radius (int, optional): Search radius in meters
+        language (str, optional): Language code
+        
+    Returns:
+        list: List of place predictions
+    """
+    GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
+    if not GOOGLE_PLACES_API_KEY:
+        return {'error': 'Google Places API key not configured'}, 500
+        
+    base_url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+    params = {
+        'input': query,
+        'key': GOOGLE_PLACES_API_KEY,
+        'types': 'address|establishment|geocode',
+        'language': language
+    }
+    
+    if session_token:
+        params['sessiontoken'] = session_token
+        
+    if location:
+        params['location'] = location
+        params['radius'] = radius
+    
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data['status'] == 'OK':
+            return {
+                'status': 'success',
+                'predictions': [
+                    {
+                        'description': pred['description'],
+                        'place_id': pred['place_id'],
+                        'types': pred.get('types', []),
+                        'structured_formatting': pred.get('structured_formatting', {})
+                    }
+                    for pred in data['predictions']
+                ]
+            }
+        else:
+            return {'status': 'error', 'message': data.get('error_message', 'No results found')}
+            
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
+
+def get_place_details(place_id, session_token=None, fields=None):
+    """
+    Get detailed information about a place using Google Places API
+    
+    Args:
+        place_id (str): Google Place ID
+        session_token (str, optional): Session token for billing
+        fields (list, optional): List of fields to return
+        
+    Returns:
+        dict: Place details
+    """
+    GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
+    if not GOOGLE_PLACES_API_KEY:
+        return {'error': 'Google Places API key not configured'}, 500
+        
+    base_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+    
+    if fields is None:
+        fields = [
+            'name', 'formatted_address', 'geometry', 'place_id',
+            'formatted_phone_number', 'international_phone_number',
+            'address_components', 'types', 'url', 'website', 'opening_hours'
+        ]
+        
+    params = {
+        'place_id': place_id,
+        'key': GOOGLE_PLACES_API_KEY,
+        'fields': ','.join(fields)
+    }
+    
+    if session_token:
+        params['sessiontoken'] = session_token
+    
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data['status'] == 'OK':
+            return {'status': 'success', 'result': data['result']}
+        else:
+            return {'status': 'error', 'message': data.get('error_message', 'Failed to get place details')}
+            
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
+
+@app.route('/api/places/autocomplete', methods=['GET'])
+@jwt_required()
+def places_autocomplete():
+    """
+    Endpoint for place autocomplete suggestions
+    Query parameters:
+        - query: The search query
+        - session_token: (optional) Session token for billing
+        - location: (optional) lat,lng for biasing results
+        - radius: (optional) Search radius in meters (default: 50000)
+        - language: (optional) Language code (default: 'en')
+    """
+    query = request.args.get('query')
+    if not query:
+        return jsonify({'error': 'Query parameter is required'}), 400
+        
+    session_token = request.args.get('session_token')
+    location = request.args.get('location')
+    radius = request.args.get('radius', 50000, type=int)
+    language = request.args.get('language', 'en')
+    
+    result = get_place_autocomplete(
+        query=query,
+        session_token=session_token,
+        location=location,
+        radius=radius,
+        language=language
+    )
+    
+    return jsonify(result)
+
+
+@app.route('/api/places/details/<place_id>', methods=['GET'])
+@jwt_required()
+def place_details(place_id):
+    """
+    Endpoint to get detailed information about a place
+    """
+    if not place_id:
+        return jsonify({'error': 'Place ID is required'}), 400
+        
+    session_token = request.args.get('session_token')
+    fields = request.args.get('fields')
+    
+    if fields:
+        fields = fields.split(',')
+    
+    result = get_place_details(
+        place_id=place_id,
+        session_token=session_token,
+        fields=fields
+    )
+    
+    return jsonify(result)
 
 # Notification system
 def send_notification(user_id, title, message, notification_type):

@@ -223,3 +223,43 @@ AttributeError: 'User' object has no attribute 'phone'
 127.0.0.1 - - [21/May/2025 12:13:51] "GET /api/projects/1/bids HTTP/1.1" 200 -
 127.0.0.1 - - [21/May/2025 12:13:51] "POST /api/projects/1/select-winner HTTP/1.1" 200 -
 127.0.0.1 - - [21/May/2025 12:13:51] "GET /api/projects/1/bids HTTP/1.1" 200 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/test/clean-db HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/projects HTTP/1.1" 422 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/test/clean-db HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:20:57] "POST /api/projects HTTP/1.1" 422 -
+ * Detected change in '/home/phyl/Development/Jagedo/Back End/test_document_access.py', reloading
+[MOCK] Email sent to test_customer_new@example.com with subject 'New Bid Received' and body: A new bid has been submitted for your project: Test Bidding Project
+[MOCK] Email sent to test_customer_new@example.com with subject 'New Bid Received' and body: A new bid has been submitted for your project: Test Bidding Project
+Bid ID: 1, Professional: 2, Score: 81.00, Details: {'nca_score': 25.0, 'rating_score': 24.0, 'success_score': 12.0, 'location_score': 20.0, 'location_match_type': 'exact', 'total_score': 81.0, 'success_rate': '80.0%'}
+Bid ID: 2, Professional: 3, Score: 54.50, Details: {'nca_score': 20.0, 'rating_score': 22.5, 'success_score': 12.0, 'location_score': 0, 'location_match_type': 'no_match', 'total_score': 54.5, 'success_rate': '80.0%'}
+[MOCK] Email sent to test_pro_new@example.com with subject 'Bid Accepted' and body: Your bid for project Test Bidding Project has been accepted!
+[MOCK] Email sent to test_pro2@example.com with subject 'Bid Not Selected' and body: Your bid for project Test Bidding Project was not selected.
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 928-551-840
+ * Detected change in '/home/phyl/Development/Jagedo/Back End/test_document_access.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 928-551-840
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/test/clean-db HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/projects/create HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/test/clean-db HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/login HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/auth/register HTTP/1.1" 404 -
+127.0.0.1 - - [21/May/2025 12:23:07] "POST /api/projects/create HTTP/1.1" 404 -
