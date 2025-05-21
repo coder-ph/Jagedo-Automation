@@ -59,29 +59,21 @@ TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
 def send_notification(user_id, title, message, notification_type):
-    """
-    Send a notification to a user
     
-    This is a wrapper around NotificationService.send for backward compatibility
-    """
     return NotificationService.send(user_id, title, message, notification_type)
 
-# Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
-# Register blueprints
 from routes.bid_routes import bp as bid_routes_bp
 app.register_blueprint(bid_routes_bp, url_prefix='')
 
-# Constants
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
 
-# Utility Classes
 class FileHandler:
     @staticmethod
     def allowed_file(filename):
@@ -248,35 +240,31 @@ def location_match_score(client_location, contractor_location):
     client = get_location_hierarchy(client_location)
     contractor = get_location_hierarchy(contractor_location)
     
-    # Exact match (same building/street)
+
     if client.get('building') and client.get('building') == contractor.get('building'):
         return 1.0, 'exact'
     
-    # Same street
+   
     if client.get('street') and client.get('street') == contractor.get('street'):
         return 0.9, 'same_street'
     
-    # Same ward
+   
     if client.get('ward') and client.get('ward') == contractor.get('ward'):
         return 0.7, 'same_ward'
     
-    # Same sub-county
+  
     if client.get('subcounty') and client.get('subcounty') == contractor.get('subcounty'):
         return 0.5, 'same_subcounty'
     
-    # Same county
+ 
     if client.get('county') and client.get('county') == contractor.get('county'):
         return 0.3, 'same_county'
     
     return 0.0, 'no_match'
 
 def calculate_bid_score(bid):
-    """
-    Calculate a detailed score for a bid based on various factors
-    Returns:
-        tuple: (total_score, score_details) where score_details is a dict with detailed breakdown
-    """
-    # Initialize score details
+ 
+   
     score_details = {
         'nca_score': 0,
         'rating_score': 0,
@@ -286,20 +274,19 @@ def calculate_bid_score(bid):
         'total_score': 0
     }
     
-    # Get professional details
     professional = bid.professional
     if not professional:
         return 0, score_details
     
-    # NCA Level: 40 points max (1-8 scale)
+   
     nca_score = (professional.nca_level / 8) * 40
     score_details['nca_score'] = round(nca_score, 2)
     
-    # Rating: 25 points max (0-5 scale)
+   
     rating_score = (professional.average_rating * 5) if professional.average_rating is not None else 0
     score_details['rating_score'] = round(rating_score, 2)
     
-    # Success Rate: 15 points max (based on successful_bids / total_bids)
+   
     success_rate = 0
     if professional.total_bids > 0:
         success_rate = (professional.successful_bids / professional.total_bids) * 100
@@ -307,46 +294,43 @@ def calculate_bid_score(bid):
     score_details['success_score'] = round(success_score, 2)
     score_details['success_rate'] = f"{success_rate:.1f}%"
     
-    # Location Score: 20 points max (0-1 scale)
+   
     location_score = (bid.location_score or 0) * 20
     location_match_type = getattr(bid, 'location_match_type', 'no_match')
     score_details['location_score'] = round(location_score, 2)
     score_details['location_match_type'] = location_match_type
     
-    # Calculate and round total score (max 100 points)
+    
     total_score = max(0, min(100, nca_score + rating_score + success_score + location_score))
     score_details['total_score'] = round(total_score, 2)
     
-    # Return both the total score and the detailed breakdown
+    
     return total_score, score_details
 
 def select_winning_bid(project_id):
-    """
-    Select the winning bid for a project based on the highest score
-    Returns: (winning_bid, score) or (None, None) if no valid bids
-    """
+  
     project = Job.query.get(project_id)
     if not project or project.status != JobStatus.OPEN:
         return None, None
     
-    # Get all pending bids for the job
+   
     bids = Bid.query.filter_by(
-        job_id=project_id,  # Changed from project_id to job_id
+        job_id=project_id,  
         status=BidStatus.PENDING
     ).all()
     
     if not bids:
         return None, None
     
-    # Calculate score for each bid
+   
     scored_bids = []
     for bid in bids:
-        # calculate_bid_score returns a tuple of (total_score, score_details)
+        
         total_score, score_details = calculate_bid_score(bid)
         scored_bids.append((bid, total_score))
         print(f"Bid ID: {bid.id}, Professional: {bid.professional_id}, Score: {total_score:.2f}, Details: {score_details}")
     
-    # Sort by score (descending)
+    
     scored_bids.sort(key=lambda x: x[1], reverse=True)
     
     return scored_bids[0] if scored_bids else (None, None)
@@ -375,7 +359,6 @@ def find_contractors_for_project(project_id, min_score=0.3, max_results=20):
   
     return scored_contractors[:max_results]
 
-# auth helper
 
 def role_required(roles):
     def decorator(fn):
@@ -402,7 +385,6 @@ def role_required(roles):
     return decorator
 
 
-# routes
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
@@ -432,7 +414,7 @@ def login():
         }
     }), 200
 
-#  automatic selection of winning bid
+
 @app.route('/api/projects/<int:project_id>/select-winner', methods=['POST'])
 @jwt_required()
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
@@ -441,21 +423,19 @@ def select_winner(project_id):
         project = Job.query.get_or_404(project_id)
         current_user = get_current_user()
         
-        # Verify the current user is the project owner or admin
+    
         if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
             return jsonify({
                 'success': False,
                 'message': 'Only the project owner can select a winner'
             }), 403
             
-        # Check if a winner has already been selected
         if project.status == JobStatus.AWARDED:
             return jsonify({
                 'success': False,
                 'message': 'A winner has already been selected for this project'
             }), 400
             
-        # Find the winning bid (highest score)
         winning_bid, winning_score = select_winning_bid(project_id)
         
         if not winning_bid:
@@ -464,18 +444,15 @@ def select_winner(project_id):
                 'message': 'No suitable bids found for this project'
             }), 400
             
-        # Update all bids for this project
         for bid in project.bids:
             if bid.id == winning_bid.id:
                 bid.status = BidStatus.ACCEPTED
                 
-                # Update professional's stats for the winner
                 professional = bid.professional
                 professional.successful_bids += 1
                 professional.total_bids += 1
                 
-                                # Update the professional's average rating based on the winning score
-                # winning_score is already just the total_score, not a tuple
+                      
                 if professional.average_rating is None:
                     professional.average_rating = winning_score
                 else:
@@ -484,11 +461,9 @@ def select_winner(project_id):
                         / professional.total_bids
                     )
                 
-                # Notify the winner
                 notify_bid_accepted(bid)
             else:
-                # Reject all other bids and notify the bidders
-                if bid.status != BidStatus.REJECTED:  # Only update if not already rejected
+                if bid.status != BidStatus.REJECTED:  
                     bid.status = BidStatus.REJECTED
                     send_notification(
                         bid.professional_id,
@@ -497,13 +472,11 @@ def select_winner(project_id):
                         "bid_rejected"
                     )
         
-        # Update project status to AWARDED
         project.status = JobStatus.AWARDED
         project.assigned_contractor_id = winning_bid.professional_id
         
         db.session.commit()
         
-        # Ensure winning_score is properly formatted (extract score from tuple if needed)
         score_value = winning_score[0] if isinstance(winning_score, tuple) else float(winning_score)
         
         return jsonify({
@@ -543,7 +516,7 @@ def get_profile():
         'data': user.to_dict()
     })
 
-# Admin only routes
+
 @app.route('/api/admin/dashboard', methods=['GET'])
 @role_required([UserRole.ADMIN])
 def admin_dashboard():
@@ -557,7 +530,7 @@ def admin_dashboard():
         }
     })
 
-# Professional only routes
+
 @app.route('/api/professional/dashboard', methods=['GET'])
 @role_required([UserRole.PROFESSIONAL])
 def professional_dashboard():
@@ -571,7 +544,7 @@ def professional_dashboard():
         }
     })
     
-    # bid submission to include location matching
+   
 @app.route('/api/projects/<int:project_id>/bids', methods=['POST'])
 @jwt_required()
 @role_required([UserRole.PROFESSIONAL])
@@ -586,21 +559,18 @@ def submit_bid(project_id):
             abort(404, description="Project not found")
         contractor = get_current_user()
     
-        # Check if project is open for bidding
         if project.status != JobStatus.OPEN:
             return jsonify({
                 'success': False,
                 'message': 'This project is no longer accepting bids'
             }), 400
 
-        # Check if a winner has already been selected
         if project.status == JobStatus.AWARDED:
             return jsonify({
                 'success': False,
                 'message': 'A winner has already been selected for this project'
             }), 400
     
-        # Check for existing bid from this professional
         existing_bid = Bid.query.filter_by(
             job_id=project_id,
             professional_id=contractor.id
@@ -612,14 +582,11 @@ def submit_bid(project_id):
                 'message': 'You have already submitted a bid for this project'
             }), 400
       
-        # Calculate location match score
         location_score, match_type = location_match_score(project.location, contractor.location)
         
-        # Start a transaction
         db.session.begin_nested()
         
         try:
-            # Create bid
             bid = Bid(
                 job_id=project_id,
                 professional_id=contractor.id,
@@ -632,9 +599,8 @@ def submit_bid(project_id):
             )
             
             db.session.add(bid)
-            db.session.flush()  # Get the bid ID without committing
+            db.session.flush() 
             
-            # Add team members
             for member_data in data['team_members']:
                 team_member = BidTeamMember(
                     bid_id=bid.id,
@@ -647,7 +613,6 @@ def submit_bid(project_id):
                 )
                 db.session.add(team_member)
             
-            # Commit the transaction
             db.session.commit()
             
         except Exception as e:
@@ -659,12 +624,9 @@ def submit_bid(project_id):
                 'error': str(e)
             }), 500
       
-        # Initialize bid automation and process the new bid
-        from bid_automation import BidAutomation
         bid_automation = BidAutomation()
         bid_automation.handle_new_bid(bid.id)
         
-        # Notify project owner about the new bid
         send_notification(
             project.customer_id,
             "New Bid Received",
@@ -672,7 +634,6 @@ def submit_bid(project_id):
             "new_bid"
         )
         
-        # Get the bid with team members for the response
         bid_data = {
             'id': bid.id,
             'amount': float(bid.amount) if bid.amount else None,
@@ -774,7 +735,6 @@ def get_project_bids(project_id):
                 } for bid in bids]
             })
             
-        # Admin and project owner can see all bids
         if can_view_all:
             bids = Bid.query.filter_by(job_id=project_id).options(
                 db.joinedload(Bid.professional),
@@ -835,7 +795,6 @@ def get_project_bids(project_id):
             'details': str(e)
         }), 500
 
-# Customer only routes
 @app.route('/api/customer/dashboard', methods=['GET'])
 @role_required([UserRole.CUSTOMER])
 def customer_dashboard():
@@ -883,7 +842,6 @@ def get_recommended_contractors(project_id):
         if current_user.id != project.customer_id and current_user.role != UserRole.ADMIN:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        # Get recommended contractors
         contractors = find_contractors_for_project(project_id)
 
         result = [{
@@ -906,7 +864,6 @@ def get_recommended_contractors(project_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# Test Routes
 @app.route('/api/test', methods=['POST', 'GET'])
 def test():
     if request.method == 'POST':
@@ -942,7 +899,6 @@ def get_project(project_id):
             current_user = get_current_user()
             app.logger.info(f"[GET /api/projects/{project_id}] Current user: {current_user.id} (Role: {current_user.role})")
             
-            # Check if user has access to this project
             has_access = (
                 current_user.role == UserRole.ADMIN or
                 project.customer_id == current_user.id or
@@ -981,7 +937,6 @@ def get_project(project_id):
                 app.logger.error(f"[GET /api/projects/{project_id}] Error fetching documents: {str(docs_e)}")
                 documents = []
             
-            # Prepare project data
             project_data = {
                 'id': project.id,
                 'title': project.title,
@@ -995,16 +950,13 @@ def get_project(project_id):
                 'documents': documents
             }
             
-            # Only include budget and bids for the project owner or admin
             if current_user.role in [UserRole.ADMIN, UserRole.CUSTOMER] and project.customer_id == current_user.id:
                 project_data['budget'] = float(project.budget) if project.budget else None
                 
-                # Get bids with detailed information including attachments
                 bids = Bid.query.filter_by(job_id=project.id).all()
                 project_data['bids'] = []
                 
                 for bid in bids:
-                    # Get bid attachments
                     bid_attachments = []
                     if hasattr(bid, 'bid_related_attachments') and bid.bid_related_attachments:
                         for doc in bid.bid_related_attachments:
@@ -1020,7 +972,6 @@ def get_project(project_id):
                             except Exception as doc_e:
                                 app.logger.error(f"[GET /api/projects/{project_id}] Error processing bid document {getattr(doc, 'id', 'unknown')}: {str(doc_e)}")
                     
-                    # Include professional details with the bid
                     professional = db.session.get(User, bid.professional_id)
                     professional_data = None
                     if professional:
@@ -1034,7 +985,6 @@ def get_project(project_id):
                             'total_bids': professional.total_bids
                         }
                     
-                    # Calculate bid score if needed
                     score, score_details = calculate_bid_score(bid)
                     
                     project_data['bids'].append({
@@ -1083,7 +1033,6 @@ def get_project(project_id):
 @role_required([UserRole.ADMIN, UserRole.CUSTOMER])
 def create_project():
     try:
-        # Handle both JSON and form data
         if request.is_json:
             data = request.get_json()
             files = request.files.getlist('files') if 'files' in request.files else []
@@ -1106,28 +1055,23 @@ def create_project():
         )
         
         db.session.add(project)
-        db.session.flush()  # Get the project ID before commit
+        db.session.flush()  
         
-        # Handle file uploads
         if files:
             file_handler = FileHandler()
             for file in files:
                 if file and file.filename != '':
-                    # save_file returns (filename, filepath) but we only need filepath
                     _, file_path = file_handler.save_file(file, project.id)
                     document = Attachment(
                         job_id=project.id,
                         filename=file.filename,
-                        file_url=file_path,  # Use the file_path from save_file
+                        file_url=file_path,
                         uploaded_by=current_user.id,
                         user_id=current_user.id
                     )
                     db.session.add(document)
         
         db.session.commit()
-        
-        # Trigger contractor matching (if implemented)
-        # find_matching_contractors(project.id)
         
         return jsonify({
             'success': True,
@@ -1153,26 +1097,20 @@ def has_document_access(user_id, attachment):
         if not user:
             return False, "User not found"
             
-        # Admin can access any document
         if user.role == UserRole.ADMIN:
             return True, "Admin access"
             
-        # Document uploader can access their own documents
         if attachment.uploaded_by == user_id:
             return True, "Document owner"
             
-        # Get the project this document belongs to
         project = Job.query.get(attachment.job_id)
         if not project:
             return False, "Project not found"
             
-        # Project owner can access all documents
         if project.customer_id == user_id:
             return True, "Project owner"
             
-        # If project is open, any professional can access documents when bidding
         if project.status == JobStatus.OPEN and user.role == UserRole.PROFESSIONAL:
-            # Check if user has a bid on this project (pending or otherwise)
             bid = Bid.query.filter_by(
                 job_id=attachment.job_id,
                 professional_id=user_id
@@ -1181,10 +1119,8 @@ def has_document_access(user_id, attachment):
             if bid:
                 return True, "Project bidder"
             
-            # Allow access to all professionals during bidding phase
             return True, "Professional access during bidding"
             
-        # After project is awarded, only the winning contractor has access
         if project.status == JobStatus.AWARDED and project.assigned_contractor_id == user_id:
             return True, "Winning contractor"
         
@@ -1236,7 +1172,6 @@ def download_document(document_id):
         attachment = Attachment.query.get_or_404(document_id)
         current_user = get_current_user()
         
-        # Check document access - we'll need to update has_document_access to work with Attachment
         has_access, message = has_document_access(current_user.id, attachment)
         if not has_access:
             return jsonify({'error': message}), 403
@@ -1292,8 +1227,8 @@ def find_matching_contractors(project_id):
             professionals_with_scores.append({
                 'professional': pro,
                 'location_score': score,
-                'avg_rating': 0,  # TODO: Calculate actual average rating
-                'nca_level': 0    # TODO: Get NCA level
+                'avg_rating': 0, 
+                'nca_level': 0    
             })
     
     professionals_with_scores.sort(
@@ -1301,7 +1236,7 @@ def find_matching_contractors(project_id):
         reverse=True
     )
     
-    return [p['professional'] for p in professionals_with_scores[:20]]  # Return top 10 matches
+    return [p['professional'] for p in professionals_with_scores[:20]]
 
 # mpesa payment
 def get_mpesa_auth_token():
@@ -1371,7 +1306,6 @@ def initiate_stk_push(phone, amount, account_reference, description):
 def mpesa_callback():
     try:
         data = request.get_json()
-        # TODO:add proper validation
         result = data['Body']['stkCallback']['ResultCode']
         checkout_request_id = data['Body']['stkCallback']['CheckoutRequestID']
         merchant_request_id = data['Body']['stkCallback']['MerchantRequestID']
@@ -1453,8 +1387,6 @@ def health_check():
         'message': 'healthy api',
     })
 
-# File handling constants and functions moved to FileHandler class
-
 @app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
 @jwt_required()
 @AccessControl.project_required
@@ -1484,7 +1416,6 @@ def upload_document(project):
         db.session.add(attachment)
         db.session.commit()
         
-        # Notify relevant users
         notify_document_upload(attachment)
         
         return jsonify({
@@ -1507,7 +1438,6 @@ def notify_document_upload(attachment):
             app.logger.error(f"Project not found for attachment {attachment.id}")
             return
             
-        # Notify the project owner if someone else uploaded the document
         if project.customer_id != uploader.id:
             send_notification(
                 project.customer_id,
@@ -1516,9 +1446,8 @@ def notify_document_upload(attachment):
                 "document_upload"
             )
         
-        # Notify all bidders about the new document
         for bid in project.bids:
-            if bid.professional_id != uploader.id:  # Don't notify the uploader
+            if bid.professional_id != uploader.id:
                 send_notification(
                     bid.professional_id,
                     "New Project Document",
@@ -1538,22 +1467,19 @@ def get_bid_scores(project_id):
     project = Job.query.get_or_404(project_id)
     current_user = get_current_user()
     
-    # Verify permissions
     if current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Use job_id instead of project_id to match the database schema
     bids = Bid.query.filter_by(job_id=project_id).all()
     
     result = []
     for bid in bids:
         score = calculate_bid_score(bid)
-        # Use the professional relationship which is defined in the Bid model
         professional = bid.professional
         result.append({
             'bid_id': bid.id,
             'contractor_id': professional.id,
-            'contractor_name': f"{professional.name}",  # Using name field since first_name/last_name don't exist in the model
+            'contractor_name': f"{professional.name}",
             'company': professional.company_name,
             'amount': float(bid.amount),
             'nca_level': professional.nca_level,
@@ -1579,13 +1505,12 @@ def notify_bid_accepted(bid):
     """Notify contractor that their bid was accepted"""
     message = f"Your bid for project {bid.job.title} has been accepted!"
     send_notification(
-        bid.professional_id,  # Use professional_id instead of contractor_id
+        bid.professional_id,
         "Bid Accepted",
         message,
         "bid_accepted"
     )
     
-    # Also update the notification content in the database
     notification = Notification.query.filter_by(
         user_id=bid.professional_id,
         title="Bid Accepted",
@@ -1596,31 +1521,15 @@ def notify_bid_accepted(bid):
         notification.content = message
         db.session.commit()
     
-# Mock email function for testing
 def send_email(to, subject, body):
     print(f"[MOCK] Email sent to {to} with subject '{subject}' and body: {body}")
     return True
-
-# Mock SMS function for testing
 def send_sms(to, message):
     print(f"[MOCK] SMS sent to {to}: {message}")
     return True
 
-# Google Places API integration
 def get_place_autocomplete(query, session_token=None, location=None, radius=50000, language='en'):
-    """
-    Get place autocomplete predictions from Google Places API
-    
-    Args:
-        query (str): The search query
-        session_token (str, optional): Session token for billing
-        location (str, optional): lat,lng for biasing results
-        radius (int, optional): Search radius in meters
-        language (str, optional): Language code
-        
-    Returns:
-        list: List of place predictions
-    """
+   
     GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
     if not GOOGLE_PLACES_API_KEY:
         return {'error': 'Google Places API key not configured'}, 500
@@ -1666,17 +1575,7 @@ def get_place_autocomplete(query, session_token=None, location=None, radius=5000
 
 
 def get_place_details(place_id, session_token=None, fields=None):
-    """
-    Get detailed information about a place using Google Places API
     
-    Args:
-        place_id (str): Google Place ID
-        session_token (str, optional): Session token for billing
-        fields (list, optional): List of fields to return
-        
-    Returns:
-        dict: Place details
-    """
     GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
     if not GOOGLE_PLACES_API_KEY:
         return {'error': 'Google Places API key not configured'}, 500
@@ -1716,15 +1615,7 @@ def get_place_details(place_id, session_token=None, fields=None):
 @app.route('/api/places/autocomplete', methods=['GET'])
 @jwt_required()
 def places_autocomplete():
-    """
-    Endpoint for place autocomplete suggestions
-    Query parameters:
-        - query: The search query
-        - session_token: (optional) Session token for billing
-        - location: (optional) lat,lng for biasing results
-        - radius: (optional) Search radius in meters (default: 50000)
-        - language: (optional) Language code (default: 'en')
-    """
+
     query = request.args.get('query')
     if not query:
         return jsonify({'error': 'Query parameter is required'}), 400
@@ -1748,9 +1639,6 @@ def places_autocomplete():
 @app.route('/api/places/details/<place_id>', methods=['GET'])
 @jwt_required()
 def place_details(place_id):
-    """
-    Endpoint to get detailed information about a place
-    """
     if not place_id:
         return jsonify({'error': 'Place ID is required'}), 400
         
@@ -1768,15 +1656,13 @@ def place_details(place_id):
     
     return jsonify(result)
 
-# Notification system
 def send_notification(user_id, title, message, notification_type):
-    # Use the message as the content if not provided
     content = message
     notification = Notification(
         user_id=user_id,
         title=title,
         message=message,
-        content=content,  # Set content to the same as message
+        content=content,  
         notification_type=notification_type,
         read=False
     )
@@ -1791,7 +1677,6 @@ def send_notification(user_id, title, message, notification_type):
         send_sms(user.phone, f"{title}: {message}")
 
 def notify_status_change(project, old_status, new_status):
-    """Notify relevant parties about project status changes"""
     try:
         if new_status == JobStatus.AWARDED and project.assigned_contractor_id:
             NotificationService.send(
@@ -1839,7 +1724,6 @@ def notify_status_change(project, old_status, new_status):
         print(f"Error in notify_status_change: {e}")
 
 def update_project_status(project_id, new_status, notes=None):
-    """Update project status and notify relevant parties"""
     try:
         project = Job.query.get(project_id)
         if not project:

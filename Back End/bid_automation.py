@@ -42,7 +42,6 @@ class BidAutomation:
                     self.schedule_evaluation(project.id)
                 
                 if len(project.bids) >= self.min_bids:
-                    # Evaluate project synchronously
                     self.evaluate_project(project.id)
 
             except Exception as e:
@@ -50,7 +49,6 @@ class BidAutomation:
                 app.logger.exception("Full traceback:")
 
     def schedule_evaluation(self, project_id):
-       # use a task queue like Celery production environment
        
       
         def _evaluate_after_delay():
@@ -118,7 +116,7 @@ class BidAutomation:
     def calculate_bid_score(self, bid, project):
        
         score = 0.0
-        
+    
        
         contractor = bid.professional
         
@@ -152,10 +150,10 @@ class BidAutomation:
         
         with app.app_context():
             try:
-                # Start a new transaction
+              
                 db.session.begin()
                 
-                # Get fresh instances to avoid detached instance issues
+                s
                 fresh_bid = db.session.query(Bid).get(bid.id)
                 project = db.session.query(Job).get(bid.job.id)
                 

@@ -1033,8 +1033,8 @@ async def test_bidding_workflow_async():
             print(f"\n✅ Found accepted bid: ID={accepted_bid.id}, Amount={accepted_bid.amount}, Contractor={accepted_bid.professional.name if accepted_bid.professional else 'None'}")
             
             # Verify the project was updated correctly
-            if updated_project.status != JobStatus.AWARDED:
-                print(f"❌ Project status was not updated to AWARDED. Current status: {updated_project.status}")
+            if updated_project.status != JobStatus.PENDING_PAYMENT:
+                print(f"❌ Project status was not updated to PENDING_PAYMENT. Current status: {updated_project.status}")
                 return False
                 
             if updated_project.assigned_contractor_id != accepted_bid.professional_id:
@@ -1046,9 +1046,80 @@ async def test_bidding_workflow_async():
             if db_bid.status != BidStatus.ACCEPTED:
                 print(f"❌ Bid status not updated in database. Expected: {BidStatus.ACCEPTED}, Got: {db_bid.status}")
                 return False
+            
+            print("\n✅ Bid acceptance verified. Testing payment flow...")
+            
+            # Test payment initiation
+            payment_response = requests.post(
+                f"{BASE_URL}/api/payments/initiate",
+                headers={
+                    'Authorization': f'Bearer {customer_token}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'job_id': project_id,
+                    'amount': float(accepted_bid.amount),
+                    'phone': '254712345678'  # Test phone number
+                }
+            )
+            
+            if payment_response.status_code != 200:
+                print(f"❌ Failed to initiate payment: {payment_response.text}")
+                return False
                 
+            payment_data = payment_response.json()
+            if not payment_data.get('success'):
+                print(f"❌ Payment initiation failed: {payment_data.get('message')}")
+                return False
+                
+            print("✅ Payment initiated successfully")
+            
+            # Verify payment status
+            payment_reference = payment_data['payment']['reference']
+            status_response = requests.get(
+                f"{BASE_URL}/api/payments/status/{payment_reference}",
+                headers={
+                    'Authorization': f'Bearer {customer_token}'
+                }
+            )
+            
+            if status_response.status_code != 200:
+                print(f"❌ Failed to check payment status: {status_response.text}")
+                return False
+                
+            status_data = status_response.json()
+            if status_data['payment']['status'] != 'completed':
+                print(f"❌ Payment not completed. Status: {status_data['payment']['status']}")
+                return False
+                
+            print("✅ Payment completed successfully")
+            
+            # Verify project status was updated to ACTIVE
+            updated_project = db.session.get(Job, project_id)
+            if updated_project.status != JobStatus.ACTIVE:
+                print(f"❌ Project status not updated to ACTIVE after payment. Status: {updated_project.status}")
+                return False
+                
+            print("✅ Project status updated to ACTIVE after payment")
+            
+            # Verify payment record was created
+            payment_record = db.session.query(PaymentTransaction).filter_by(
+                reference=payment_reference
+            ).first()
+            
+            if not payment_record:
+                print("❌ Payment record not found in database")
+                return False
+                
+            if payment_record.status != PaymentStatus.COMPLETED:
+                print(f"❌ Payment record status is not COMPLETED. Status: {payment_record.status}")
+                return False
+                
+            print("✅ Payment record verified in database")
+            
             print("\n✅ All verifications passed!")
             print(f"Project '{updated_project.title}' was successfully awarded to {accepted_bid.professional.name if accepted_bid.professional else 'contractor'}")
+            print(f"Payment of {payment_record.amount} KES was successfully processed")
             return True
         else:
             print("\n❌ No bid was accepted. Checking for admin notification...")
@@ -1088,14 +1159,14 @@ async def test_bidding_workflow_async():
             print("No bid met the minimum score. Admin notification was created for manual review.")
             return True  # This is a valid outcome
             
-        # Verify project status was updated
-        if updated_project.status != JobStatus.AWARDED.value:
-            print(f"Project status not updated. Expected: {JobStatus.AWARDED.value}, Got: {updated_project.status}")
+        # Verify project status was updated to PENDING_PAYMENT
+        if updated_project.status != JobStatus.PENDING_PAYMENT.value:
+            print(f"Project status not updated to PENDING_PAYMENT. Expected: {JobStatus.PENDING_PAYMENT.value}, Got: {updated_project.status}")
             return False
             
-        print(f"Bid automation successful! Project awarded to bid {accepted_bid.id}")
+        print(f"Bid automation successful! Project pending payment for bid {accepted_bid.id}")
         
-        # Verify notifications were sent
+        # Verify notifications were sent for bid acceptance
         customer_notification = Notification.query.filter_by(
             user_id=customer.id,
             notification_type='contractor_selected'
@@ -1111,6 +1182,97 @@ async def test_bidding_workflow_async():
             return False
             
         print("Verified notifications were sent to both customer and winning contractor")
+        
+        # Test payment flow
+        print("\n=== Testing Payment Flow ===")
+        
+        # Log in as customer
+        customer_login = login_user(TEST_CUSTOMER_EMAIL, TEST_CUSTOMER_PASSWORD)
+        if not customer_login:
+            print("Failed to log in as customer for payment test")
+            return False
+            
+        customer_token = customer_login['access_token']
+        
+        # Initiate payment
+        payment_response = requests.post(
+            f"{BASE_URL}/api/payments/initiate",
+            headers={
+                'Authorization': f'Bearer {customer_token}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'job_id': project_id,
+                'amount': float(accepted_bid.amount),
+                'phone': '254712345678'  # Test phone number
+            }
+        )
+        
+        if payment_response.status_code != 200:
+            print(f"❌ Failed to initiate payment: {payment_response.text}")
+            return False
+            
+        payment_data = payment_response.json()
+        if not payment_data.get('success'):
+            print(f"❌ Payment initiation failed: {payment_data.get('message')}")
+            return False
+            
+        print("✅ Payment initiated successfully")
+        
+        # Verify payment status
+        payment_reference = payment_data['payment']['reference']
+        status_response = requests.get(
+            f"{BASE_URL}/api/payments/status/{payment_reference}",
+            headers={
+                'Authorization': f'Bearer {customer_token}'
+            }
+        )
+        
+        if status_response.status_code != 200:
+            print(f"❌ Failed to check payment status: {status_response.text}")
+            return False
+            
+        status_data = status_response.json()
+        if status_data['payment']['status'] != 'completed':
+            print(f"❌ Payment not completed. Status: {status_data['payment']['status']}")
+            return False
+            
+        print("✅ Payment completed successfully")
+        
+        # Verify project status was updated to ACTIVE
+        updated_project = db.session.get(Job, project_id)
+        if updated_project.status != JobStatus.ACTIVE:
+            print(f"❌ Project status not updated to ACTIVE after payment. Status: {updated_project.status}")
+            return False
+            
+        print("✅ Project status updated to ACTIVE after payment")
+        
+        # Verify payment record was created
+        payment_record = PaymentTransaction.query.filter_by(
+            reference=payment_reference
+        ).first()
+        
+        if not payment_record:
+            print("❌ Payment record not found in database")
+            return False
+            
+        if payment_record.status != PaymentStatus.COMPLETED:
+            print(f"❌ Payment record status is not COMPLETED. Status: {payment_record.status}")
+            return False
+            
+        print("✅ Payment record verified in database")
+        
+        # Verify payment notification was sent to contractor
+        payment_notification = Notification.query.filter_by(
+            user_id=accepted_bid.professional_id,
+            notification_type='payment_received'
+        ).first()
+        
+        if not payment_notification:
+            print("❌ Payment notification not sent to contractor")
+            return False
+            
+        print("✅ Payment notification sent to contractor")
         
         # Verify document access
         winning_pro = db.session.get(User, accepted_bid.professional_id)
