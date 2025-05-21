@@ -5,7 +5,7 @@ import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage.jsx';
 import CustomerServiceRequest from './Details/CustomerServiceForm.jsx';
-import CustomerDashboard from './dashboard/Customer'; // ✅ Imported here
+import CustomerDashboard from './dashboard/Customer'; 
 
 // Optional: placeholders for other user forms, in case you want to add routes for professionals and fundis later
 const ProfessionalServiceRequest = () => (
@@ -35,7 +35,7 @@ function App() {
           <Route path="/customer-request" element={<CustomerServiceRequest />} />
 
           {/* Customer Dashboard */}
-          <Route path="/customer-dashboard" element={<CustomerDashboard />} /> {/* ✅ Added */}
+          <Route path="/customer-dashboard" element={<CustomerDashboard />} /> 
 
           {/* Optional placeholders for other user roles */}
           <Route path="/professional-request" element={<ProfessionalServiceRequest />} />

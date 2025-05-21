@@ -81,7 +81,7 @@ const CustomerServiceRequest = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    toast.success('Service request submitted successfully! Redirecting to dashboard...', {
+    toast.success('Service request submitted successfully!', {
       position: "top-center",
       autoClose: 2500,
       hideProgressBar: false,
@@ -90,7 +90,7 @@ const CustomerServiceRequest = () => {
       draggable: true,
       progress: undefined,
       theme: "colored",
-      onClose: () => navigate('/dashboard')
+      onClose: () => navigate('/customer-dashboard')
     });
     
     console.log('Service Request Submitted:', formData);
