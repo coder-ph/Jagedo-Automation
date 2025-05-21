@@ -3,7 +3,7 @@ from models import Skill, ProfessionalSkill, Job, Category, User, Bid
 
 def check_skills():
     with app.app_context():
-        # Print all categories and their skills
+        
         print("=== Categories and Skills ===")
         for category in Category.query.all():
             print(f"\nCategory: {category.name} (ID: {category.id})")
@@ -17,7 +17,7 @@ def check_skills():
                 for skill in skills:
                     print(f"  - {skill.name} (ID: {skill.id})")
         
-        # Print all professionals and their skills
+        
         print("\n=== All Professionals and Their Skills ===")
         professionals = User.query.filter_by(role='professional').all()
         for prof in professionals:
@@ -34,7 +34,7 @@ def check_skills():
             else:
                 print("  No skills assigned")
         
-        # Print open jobs and potential matching professionals
+        
         print("\n=== Open Jobs and Potential Matches ===")
         open_jobs = Job.query.filter_by(status='open').all()
         for job in open_jobs:
@@ -42,20 +42,19 @@ def check_skills():
             print(f"\nJob: {job.title} (ID: {job.id})")
             print(f"Category: {category.name if category else 'None'} (ID: {job.category_id})")
             
-            # Get all skills that could be relevant to this job
+            
             if category:
                 if category.parent_id is None:
-                    # Parent category - get all subcategories
+                    
                     subcategories = [c.id for c in category.children]
                 else:
-                    # Already a subcategory
                     subcategories = [category.id]
                 
                 relevant_skills = Skill.query.filter(
                     Skill.category_id.in_(subcategories)
                 ).all()
                 
-                # Find professionals with matching skills
+                
                 matching_pros = db.session.query(User).join(
                     ProfessionalSkill,
                     User.id == ProfessionalSkill.professional_id

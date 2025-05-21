@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 
 class Config:
-    # Default configuration
+    
     DEBUG = False
     TESTING = False
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-123'
@@ -13,9 +13,9 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'txt'}
     
-    # Cache configuration
-    CACHE_TYPE = 'SimpleCache'  # Using SimpleCache for development
-    CACHE_DEFAULT_TIMEOUT = 300  # 5 minutes default timeout
+    
+    CACHE_TYPE = 'SimpleCache'  
+    CACHE_DEFAULT_TIMEOUT = 300  
     
     @staticmethod
     def init_app(app):

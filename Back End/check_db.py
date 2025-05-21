@@ -14,12 +14,12 @@ def check_database():
         print(f"Professional Skills: {ProfessionalSkill.query.count()}")
         print(f"\nCategories: {Category.query.count()}")
         
-        # Print first few users
+    
         print("\n=== Sample Users ===")
         for user in User.query.limit(3).all():
             print(f"ID: {user.id}, Email: {user.email}, Role: {user.role}")
         
-        # Print first few jobs
+    
         print("\n=== Sample Jobs ===")
         for job in Job.query.limit(3).all():
             print(f"ID: {job.id}, Title: {job.title}, Status: {job.status}, Category ID: {job.category_id}")

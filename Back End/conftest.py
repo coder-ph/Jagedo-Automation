@@ -13,24 +13,19 @@ from flask_jwt_extended import create_access_token
 @pytest.fixture(scope='session')
 def app():
     """Create and configure a new app instance for each test."""
-    # Create a temporary file to isolate the database for each test
     db_fd, db_path = tempfile.mkstemp()
     
-    # Create app with testing config
     app = create_app('testing')
     
-    # Override database URI to use temporary file
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['JWT_SECRET_KEY'] = 'test-secret-key'
     app.config['TESTING'] = True
     
-    # Create tables
     with app.app_context():
         _db.create_all()
     
     yield app
     
-    # Clean up
     with app.app_context():
         _db.session.remove()
         _db.drop_all()
@@ -41,43 +36,36 @@ def app():
 @pytest.fixture
 def db(app):
     """Provide the transactional fixtures with access to the database."""
-    # Start a transaction
     with app.app_context():
         _db.session.begin()
         yield _db
-        # Rollback any changes made during the test
         _db.session.rollback()
-        # Close the session
         _db.session.close()
 
 @pytest.fixture
 def db_session(db):
     """Provides a database session for testing."""
-    # Create a new connection and transaction
     connection = db.engine.connect()
     transaction = connection.begin()
     
-    # Create a new session bound to our connection
     session_factory = db.sessionmaker(bind=connection)
     session = db.scoped_session(session_factory)
     
-    # Store the original session and set our test session
     old_session = db.session
     db.session = session
     
     yield session
     
-    # Clean up
+    
     session.remove()
     transaction.rollback()
     connection.close()
-    # Restore the original session
     db.session = old_session
 
 @pytest.fixture
 def test_customer(db_session):
-    """Create a test customer user."""
-    # Delete existing test user if exists
+   
+    
     existing_user = User.query.filter_by(email='customer@example.com').first()
     if existing_user:
         db_session.delete(existing_user)
@@ -100,8 +88,7 @@ def test_customer(db_session):
 
 @pytest.fixture
 def test_professional(db_session):
-    """Create a test professional user."""
-    # Delete existing test user if exists
+    
     existing_user = User.query.filter_by(email='professional@example.com').first()
     if existing_user:
         db_session.delete(existing_user)
