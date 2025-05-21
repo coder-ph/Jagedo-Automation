@@ -1,611 +1,777 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+// import React, { useState, useEffect } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import { ToastContainer, toast } from 'react-toastify';
+// import 'react-toastify/dist/ReactToastify.css';
 
-const CustomerDashboard = () => {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('requests');
-  const [projects, setProjects] = useState([]);
-  const [serviceRequests, setServiceRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalRequests: 0,
-    activeProjects: 0,
-    completedProjects: 0,
-    pendingRequests: 0
-  });
+// const projectStatuses = {
+//   PENDING: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+//   IN_PROGRESS: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+//   COMPLETED: { label: 'Completed', color: 'bg-green-100 text-green-800' },
+//   APPROVED: { label: 'Approved', color: 'bg-purple-100 text-purple-800' },
+//   REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-800' }
+// };
 
-  // Mock data initialization
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockProjects = [
-        {
-          id: 'prj-001',
-          title: 'Kitchen Renovation',
-          serviceRequestId: 'req-001',
-          status: 'In Progress',
-          provider: 'Elite Contractors Ltd',
-          startDate: '2023-06-15',
-          estimatedEnd: '2023-07-20',
-          budget: 'Ksh 250,000',
-          progress: 65,
-          updates: [
-            {
-              date: '2023-06-28',
-              message: 'Tiling completed, starting on cabinetry',
-              photos: ['tile1.jpg', 'tile2.jpg']
-            },
-            {
-              date: '2023-06-20',
-              message: 'Demolition and plumbing work completed',
-              photos: ['demo1.jpg']
-            }
-          ]
-        },
-        {
-          id: 'prj-002',
-          title: 'Office Electrical Wiring',
-          serviceRequestId: 'req-002',
-          status: 'Completed',
-          provider: 'Power Solutions Kenya',
-          startDate: '2023-05-10',
-          endDate: '2023-06-05',
-          budget: 'Ksh 120,000',
-          progress: 100,
-          updates: [
-            {
-              date: '2023-06-03',
-              message: 'Final inspection and testing completed',
-              photos: ['final1.jpg', 'final2.jpg']
-            }
-          ]
-        },
-        {
-          id: 'prj-003',
-          title: 'Bathroom Remodel',
-          serviceRequestId: 'req-004',
-          status: 'In Progress',
-          provider: 'Home Perfect Ltd',
-          startDate: '2023-07-01',
-          estimatedEnd: '2023-08-15',
-          budget: 'Ksh 180,000',
-          progress: 30,
-          updates: [
-            {
-              date: '2023-07-10',
-              message: 'Initial demolition completed, preparing for plumbing',
-              photos: ['bath1.jpg']
-            }
-          ]
-        }
-      ];
+// const CustomerDashboard = () => {
+//   const navigate = useNavigate();
+//   const [activeTab, setActiveTab] = useState('active');
+//   const [projects, setProjects] = useState([]);
+//   const [selectedProject, setSelectedProject] = useState(null);
+//   const [isViewingDetails, setIsViewingDetails] = useState(false);
+//   const [isViewingFiles, setIsViewingFiles] = useState(false);
+//   const [newMessage, setNewMessage] = useState('');
+//   const [isApproving, setIsApproving] = useState(false);
+//   const [isRejecting, setIsRejecting] = useState(false);
+//   const [rejectionReason, setRejectionReason] = useState('');
 
-      const mockRequests = [
-        {
-          id: 'req-001',
-          title: 'Kitchen Renovation',
-          date: '2023-06-10',
-          status: 'In Progress',
-          type: 'Contractor',
-          region: 'Nairobi',
-          budget: 'Ksh 250,000',
-          description: 'Complete kitchen renovation including tiling, cabinetry, and plumbing work'
-        },
-        {
-          id: 'req-002',
-          title: 'Office Electrical Wiring',
-          date: '2023-05-05',
-          status: 'Completed',
-          type: 'Professional',
-          region: 'Nairobi',
-          budget: 'Ksh 120,000',
-          description: 'Complete electrical wiring for new office space'
-        },
-        {
-          id: 'req-003',
-          title: 'Plumbing Repair',
-          date: '2023-07-01',
-          status: 'Pending',
-          type: 'Fundi',
-          region: 'Nairobi',
-          budget: 'Ksh 15,000',
-          description: 'Fix leaking pipes in bathroom'
-        },
-        {
-          id: 'req-004',
-          title: 'Bathroom Remodel',
-          date: '2023-06-25',
-          status: 'In Progress',
-          type: 'Contractor',
-          region: 'Nairobi',
-          budget: 'Ksh 180,000',
-          description: 'Complete bathroom remodel with new tiles and fixtures'
-        }
-      ];
+//   // Mock data - in a real app, this would come from an API
+//   useEffect(() => {
+//     const mockProjects = [
+//       {
+//         id: '1',
+//         title: 'Home Plumbing Repair',
+//         serviceType: 'Fundi',
+//         provider: 'John Plumbing Services',
+//         status: 'IN_PROGRESS',
+//         budget: '15,000 Ksh',
+//         startDate: '2023-06-15',
+//         estimatedCompletion: '2023-06-25',
+//         location: 'Nairobi, Kilimani',
+//         description: 'Fixing leaking pipes in the kitchen and bathroom, installing new faucets',
+//         files: [
+//           { name: 'plumbing_quote.pdf', type: 'pdf', size: '2.4MB', uploaded: '2023-06-10' },
+//           { name: 'kitchen_layout.jpg', type: 'image', size: '1.2MB', uploaded: '2023-06-11' }
+//         ],
+//         updates: [
+//           { 
+//             date: '2023-06-16', 
+//             message: 'Initial assessment completed. Materials ordered.', 
+//             sender: 'provider',
+//             attachments: []
+//           },
+//           { 
+//             date: '2023-06-18', 
+//             message: 'Materials delivered. Work started on kitchen pipes.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'materials_delivered.jpg', type: 'image', size: '0.8MB' }
+//             ]
+//           }
+//         ]
+//       },
+//       {
+//         id: '2',
+//         title: 'Office Electrical Wiring',
+//         serviceType: 'Professional',
+//         provider: 'ElectroTech Solutions',
+//         status: 'COMPLETED',
+//         budget: '45,000 Ksh',
+//         startDate: '2023-05-20',
+//         estimatedCompletion: '2023-06-10',
+//         completionDate: '2023-06-08',
+//         location: 'Nairobi, Westlands',
+//         description: 'Complete rewiring of office space, installation of new sockets and lighting',
+//         files: [
+//           { name: 'electrical_plan.pdf', type: 'pdf', size: '3.1MB', uploaded: '2023-05-15' },
+//           { name: 'materials_list.pdf', type: 'pdf', size: '0.5MB', uploaded: '2023-05-18' }
+//         ],
+//         updates: [
+//           { 
+//             date: '2023-05-22', 
+//             message: 'Initial wiring completed. Waiting for inspection.', 
+//             sender: 'provider',
+//             attachments: []
+//           },
+//           { 
+//             date: '2023-06-05', 
+//             message: 'Inspection passed. Finalizing installations.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'inspection_report.pdf', type: 'pdf', size: '1.5MB' }
+//             ]
+//           },
+//           { 
+//             date: '2023-06-08', 
+//             message: 'Project completed. Please review and approve.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'final_work.jpg', type: 'image', size: '2.1MB' },
+//               { name: 'completion_certificate.pdf', type: 'pdf', size: '0.7MB' }
+//             ]
+//           }
+//         ]
+//       },
+//       {
+//         id: '3',
+//         title: 'Garden Landscaping',
+//         serviceType: 'Contractor',
+//         provider: 'GreenScape Ltd',
+//         status: 'APPROVED',
+//         budget: '75,000 Ksh',
+//         startDate: '2023-04-10',
+//         estimatedCompletion: '2023-05-15',
+//         completionDate: '2023-05-12',
+//         approvalDate: '2023-05-18',
+//         location: 'Nairobi, Karen',
+//         description: 'Complete garden redesign including new plants, irrigation system, and stone pathways',
+//         files: [
+//           { name: 'landscape_design.pdf', type: 'pdf', size: '5.2MB', uploaded: '2023-04-05' },
+//           { name: 'plant_selection.jpg', type: 'image', size: '1.8MB', uploaded: '2023-04-07' }
+//         ],
+//         updates: [
+//           { 
+//             date: '2023-04-12', 
+//             message: 'Site preparation completed. Materials delivered.', 
+//             sender: 'provider',
+//             attachments: []
+//           },
+//           { 
+//             date: '2023-04-25', 
+//             message: 'Irrigation system installed. Starting on pathways.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'irrigation_system.jpg', type: 'image', size: '1.5MB' }
+//             ]
+//           },
+//           { 
+//             date: '2023-05-10', 
+//             message: 'Planting completed. Final touches in progress.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'planting_progress.jpg', type: 'image', size: '2.3MB' }
+//             ]
+//           },
+//           { 
+//             date: '2023-05-12', 
+//             message: 'Project completed. Awaiting your approval.', 
+//             sender: 'provider',
+//             attachments: [
+//               { name: 'final_garden.jpg', type: 'image', size: '3.1MB' }
+//             ]
+//           }
+//         ]
+//       }
+//     ];
+//     setProjects(mockProjects);
+//   }, []);
 
-      setProjects(mockProjects);
-      setServiceRequests(mockRequests);
+//   const filteredProjects = projects.filter(project => {
+//     if (activeTab === 'active') {
+//       return project.status !== 'COMPLETED' && project.status !== 'APPROVED' && project.status !== 'REJECTED';
+//     } else if (activeTab === 'completed') {
+//       return project.status === 'COMPLETED';
+//     } else if (activeTab === 'approved') {
+//       return project.status === 'APPROVED';
+//     } else if (activeTab === 'rejected') {
+//       return project.status === 'REJECTED';
+//     }
+//     return true;
+//   });
+
+//   const viewProjectDetails = (project) => {
+//     setSelectedProject(project);
+//     setIsViewingDetails(true);
+//   };
+
+//   const viewProjectFiles = (project) => {
+//     setSelectedProject(project);
+//     setIsViewingFiles(true);
+//   };
+
+//   const sendMessage = () => {
+//     if (!newMessage.trim()) return;
+    
+//     const updatedProject = {
+//       ...selectedProject,
+//       updates: [
+//         ...selectedProject.updates,
+//         {
+//           date: new Date().toISOString().split('T')[0],
+//           message: newMessage,
+//           sender: 'customer',
+//           attachments: []
+//         }
+//       ]
+//     };
+    
+//     setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+//     setSelectedProject(updatedProject);
+//     setNewMessage('');
+//     toast.success('Message sent successfully!');
+//   };
+
+//   const approveProject = () => {
+//     setIsApproving(true);
+//     // In a real app, this would be an API call
+//     setTimeout(() => {
+//       const updatedProject = {
+//         ...selectedProject,
+//         status: 'APPROVED',
+//         approvalDate: new Date().toISOString().split('T')[0],
+//         updates: [
+//           ...selectedProject.updates,
+//           {
+//             date: new Date().toISOString().split('T')[0],
+//             message: 'Customer approved the completed work.',
+//             sender: 'system',
+//             attachments: []
+//           }
+//         ]
+//       };
       
-      // Calculate stats
-      setStats({
-        totalRequests: mockRequests.length,
-        activeProjects: mockProjects.filter(p => p.status === 'In Progress').length,
-        completedProjects: mockProjects.filter(p => p.status === 'Completed').length,
-        pendingRequests: mockRequests.filter(r => r.status === 'Pending').length
-      });
+//       setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+//       setSelectedProject(updatedProject);
+//       setIsApproving(false);
+//       setIsViewingDetails(false);
+//       toast.success('Project approved successfully!');
+//     }, 1000);
+//   };
 
-      setIsLoading(false);
-    }, 1000);
-  }, []);
-
-  const handleNewRequest = () => {
-    navigate('/service-request');
-  };
-
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      'Pending': 'bg-yellow-100 text-yellow-800',
-      'In Progress': 'bg-blue-100 text-blue-800',
-      'Completed': 'bg-green-100 text-green-800',
-      'Cancelled': 'bg-red-100 text-red-800'
-    };
+//   const rejectProject = () => {
+//     if (!rejectionReason.trim()) {
+//       toast.error('Please provide a reason for rejection');
+//       return;
+//     }
     
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status}
-      </span>
-    );
-  };
-
-  const renderStatsCards = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Total Requests Card */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total Requests</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalRequests}</p>
-            </div>
-            <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Projects Card */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Active Projects</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.activeProjects}</p>
-            </div>
-            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Completed Projects Card */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Completed Projects</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.completedProjects}</p>
-            </div>
-            <div className="p-3 rounded-full bg-green-100 text-green-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Pending Requests Card */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Pending Requests</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.pendingRequests}</p>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderRequestsTab = () => {
-    if (isLoading) return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-    
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-800">My Service Requests</h2>
-            <p className="text-sm text-gray-500 mt-1">Track all your service requests in one place</p>
-          </div>
-          <button
-            onClick={handleNewRequest}
-            className="flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-md transition-all shadow-sm hover:shadow-md"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            New Request
-          </button>
-        </div>
-        
-        {renderStatsCards()}
-        
-        <div className="bg-white shadow rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {serviceRequests.map((request) => (
-                  <tr key={request.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{request.title}</div>
-                          <div className="text-sm text-gray-500">#{request.id}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{request.type} • {request.region}</div>
-                      <div className="text-sm text-gray-500">{request.date}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        {getStatusBadge(request.status)}
-                        <span className="mt-1 text-xs text-gray-500">
-                          {request.budget}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {projects.some(p => p.serviceRequestId === request.id) ? (
-                        <Link 
-                          to={`/project/${request.id}`} 
-                          className="text-indigo-600 hover:text-indigo-900 flex items-center justify-end"
-                        >
-                          View Project
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      ) : (
-                        <span className="text-gray-400">No project yet</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderProjectsTab = () => {
-    if (isLoading) return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-    
-    const activeProjects = projects.filter(p => p.status === 'In Progress');
-    const completedProjects = projects.filter(p => p.status === 'Completed');
-    
-    return (
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">My Projects</h2>
-          <p className="text-sm text-gray-500 mt-1">Track all your active and completed projects</p>
-        </div>
-        
-        {renderStatsCards()}
-        
-        {/* Active Projects Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">Active Projects</h3>
-            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-              {activeProjects.length} ongoing
-            </span>
-          </div>
-          
-          {activeProjects.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {activeProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="mt-2 text-lg font-medium text-gray-900">No active projects</h3>
-              <p className="mt-1 text-sm text-gray-500">You currently don't have any active projects.</p>
-              <button
-                onClick={() => setActiveTab('requests')}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
-              >
-                View Service Requests
-              </button>
-            </div>
-          )}
-        </div>
-        
-        {/* Completed Projects Section */}
-        <div className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">Completed Projects</h3>
-            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-              {completedProjects.length} completed
-            </span>
-          </div>
-          
-          {completedProjects.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {completedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="mt-2 text-lg font-medium text-gray-900">No completed projects yet</h3>
-              <p className="mt-1 text-sm text-gray-500">Your completed projects will appear here.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const ProjectCard = ({ project }) => {
-    return (
-      <div className="bg-white shadow rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
-        <div className="p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{project.title}</h3>
-              <p className="text-sm text-gray-500 mt-1">With {project.provider}</p>
-            </div>
-            {getStatusBadge(project.status)}
-          </div>
-          
-          <div className="mt-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{project.progress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className={`h-2.5 rounded-full ${
-                  project.progress < 30 ? 'bg-red-500' : 
-                  project.progress < 70 ? 'bg-yellow-500' : 
-                  'bg-green-500'
-                }`} 
-                style={{ width: `${project.progress}%` }}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Start Date</p>
-              <p className="font-medium">{project.startDate}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">{project.status === 'Completed' ? 'Completed' : 'Estimated End'}</p>
-              <p className="font-medium">
-                {project.status === 'Completed' ? project.endDate : project.estimatedEnd}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-500">Budget</p>
-              <p className="font-medium">{project.budget}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Linked Request</p>
-              <Link 
-                to={`/request/${project.serviceRequestId}`} 
-                className="font-medium text-indigo-600 hover:underline text-sm"
-              >
-                View Request
-              </Link>
-            </div>
-          </div>
-          
-          <div className="mt-5">
-            <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-2">Recent Updates</h4>
-            {project.updates.length > 0 ? (
-              <div className="space-y-3">
-                {project.updates.slice(0, 2).map((update, idx) => (
-                  <div key={idx} className="border-l-2 border-indigo-200 pl-3 py-1">
-                    <p className="text-xs text-gray-500">{update.date}</p>
-                    <p className="text-sm">{update.message}</p>
-                    {update.photos && update.photos.length > 0 && (
-                      <div className="flex space-x-2 mt-1">
-                        {update.photos.map((photo, i) => (
-                          <div key={i} className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
-                            <span className="text-xs text-gray-400">Photo</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No updates yet</p>
-            )}
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 px-5 py-3 flex justify-end">
-          <Link
-            to={`/project/${project.id}`}
-            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
-          >
-            View Details
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-      </div>
-    );
-  };
-
-  const renderMessagesTab = () => {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">Messages</h2>
-          <p className="text-sm text-gray-500 mt-1">Communicate with your service providers</p>
-        </div>
-        
-        <div className="bg-white shadow rounded-xl overflow-hidden">
-          <div className="p-6 text-center">
-            <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">No messages yet</h3>
-            <p className="mt-2 text-sm text-gray-500">When you start a project, you'll be able to message with your service provider here.</p>
-            <div className="mt-6">
-              <button
-                onClick={() => setActiveTab('projects')}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
-              >
-                View My Projects
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <ToastContainer position="top-right" autoClose={3000} />
+//     setIsRejecting(true);
+//     // In a real app, this would be an API call
+//     setTimeout(() => {
+//       const updatedProject = {
+//         ...selectedProject,
+//         status: 'REJECTED',
+//         updates: [
+//           ...selectedProject.updates,
+//           {
+//             date: new Date().toISOString().split('T')[0],
+//             message: `Customer rejected the completed work. Reason: ${rejectionReason}`,
+//             sender: 'system',
+//             attachments: []
+//           }
+//         ]
+//       };
       
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
-              <Link to="/" className="text-xl font-bold text-gray-900 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                ServiceHub
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none relative">
-                <span className="sr-only">Notifications</span>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
-              </button>
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <span className="text-indigo-600 font-medium">JD</span>
-                </div>
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-700">John Doe</p>
-                  <p className="text-xs text-gray-500">Customer</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'requests'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Service Requests
-            </button>
-            <button
-              onClick={() => setActiveTab('projects')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'projects'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Projects
-            </button>
-            <button
-              onClick={() => setActiveTab('messages')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'messages'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Messages
-            </button>
-          </nav>
-        </div>
-        
-        {/* Tab Content */}
-        <div>
-          {activeTab === 'requests' && renderRequestsTab()}
-          {activeTab === 'projects' && renderProjectsTab()}
-          {activeTab === 'messages' && renderMessagesTab()}
-        </div>
-      </main>
-    </div>
-  );
-};
+//       setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+//       setSelectedProject(updatedProject);
+//       setIsRejecting(false);
+//       setRejectionReason('');
+//       setIsViewingDetails(false);
+//       toast.success('Project rejected. The service provider has been notified.');
+//     }, 1000);
+//   };
 
-export default CustomerDashboard;
+//   const getFileIcon = (fileType) => {
+//     switch (fileType) {
+//       case 'pdf':
+//         return (
+//           <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+//           </svg>
+//         );
+//       case 'image':
+//         return (
+//           <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+//           </svg>
+//         );
+//       default:
+//         return (
+//           <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+//           </svg>
+//         );
+//     }
+//   };
+
+//   return (
+//     <div className="min-h-screen bg-gray-50">
+//       <ToastContainer position="top-center" autoClose={3000} />
+      
+//       {/* Header */}
+//       <header className="bg-white shadow-sm">
+//         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+//           <h1 className="text-2xl font-bold text-gray-900">Customer Dashboard</h1>
+//           <button
+//             onClick={() => navigate('/create-request')}
+//             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md hover:from-indigo-700 hover:to-purple-700 transition-colors"
+//           >
+//             + New Request
+//           </button>
+//         </div>
+//       </header>
+
+//       {/* Main Content */}
+//       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+//         {/* Tabs */}
+//         <div className="border-b border-gray-200 mb-6">
+//           <nav className="-mb-px flex space-x-8">
+//             <button
+//               onClick={() => setActiveTab('active')}
+//               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'active' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+//             >
+//               Active Projects
+//             </button>
+//             <button
+//               onClick={() => setActiveTab('completed')}
+//               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'completed' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+//             >
+//               Completed (Pending Approval)
+//             </button>
+//             <button
+//               onClick={() => setActiveTab('approved')}
+//               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'approved' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+//             >
+//               Approved Projects
+//             </button>
+//             <button
+//               onClick={() => setActiveTab('rejected')}
+//               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'rejected' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+//             >
+//               Rejected Projects
+//             </button>
+//           </nav>
+//         </div>
+
+//         {/* Projects List */}
+//         <div className="bg-white shadow rounded-lg overflow-hidden">
+//           {filteredProjects.length === 0 ? (
+//             <div className="p-8 text-center">
+//               <svg
+//                 className="mx-auto h-12 w-12 text-gray-400"
+//                 fill="none"
+//                 viewBox="0 0 24 24"
+//                 stroke="currentColor"
+//                 aria-hidden="true"
+//               >
+//                 <path
+//                   strokeLinecap="round"
+//                   strokeLinejoin="round"
+//                   strokeWidth="2"
+//                   d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+//                 />
+//               </svg>
+//               <h3 className="mt-2 text-sm font-medium text-gray-900">No projects found</h3>
+//               <p className="mt-1 text-sm text-gray-500">
+//                 {activeTab === 'active'
+//                   ? 'You currently have no active projects.'
+//                   : activeTab === 'completed'
+//                   ? 'You have no projects pending approval.'
+//                   : activeTab === 'approved'
+//                   ? 'You have no approved projects.'
+//                   : 'You have no rejected projects.'}
+//               </p>
+//               <div className="mt-6">
+//                 <button
+//                   onClick={() => navigate('/create-request')}
+//                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+//                 >
+//                   <svg
+//                     className="-ml-1 mr-2 h-5 w-5"
+//                     xmlns="http://www.w3.org/2000/svg"
+//                     viewBox="0 0 20 20"
+//                     fill="currentColor"
+//                     aria-hidden="true"
+//                   >
+//                     <path
+//                       fillRule="evenodd"
+//                       d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+//                       clipRule="evenodd"
+//                     />
+//                   </svg>
+//                   New Service Request
+//                 </button>
+//               </div>
+//             </div>
+//           ) : (
+//             <ul className="divide-y divide-gray-200">
+//               {filteredProjects.map((project) => (
+//                 <li key={project.id} className="p-4 hover:bg-gray-50 transition-colors">
+//                   <div className="flex items-center justify-between">
+//                     <div className="flex items-center space-x-4">
+//                       <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${projectStatuses[project.status].color}`}>
+//                         <span className="text-xs font-medium">
+//                           {projectStatuses[project.status].label.charAt(0)}
+//                         </span>
+//                       </div>
+//                       <div>
+//                         <h3 className="text-lg font-medium text-gray-900">{project.title}</h3>
+//                         <p className="text-sm text-gray-500">
+//                           {project.serviceType} • {project.provider} • {project.budget}
+//                         </p>
+//                       </div>
+//                     </div>
+//                     <div className="flex space-x-2">
+//                       <button
+//                         onClick={() => viewProjectFiles(project)}
+//                         className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+//                       >
+//                         View Files
+//                       </button>
+//                       <button
+//                         onClick={() => viewProjectDetails(project)}
+//                         className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200 transition-colors"
+//                       >
+//                         View Details
+//                       </button>
+//                     </div>
+//                   </div>
+//                   <div className="mt-2 flex justify-between items-center">
+//                     <div className="flex items-center space-x-2">
+//                       <span className={`px-2 py-1 text-xs rounded-full ${projectStatuses[project.status].color}`}>
+//                         {projectStatuses[project.status].label}
+//                       </span>
+//                       <span className="text-xs text-gray-500">
+//                         Started: {project.startDate}
+//                         {project.estimatedCompletion && ` • Est. Completion: ${project.estimatedCompletion}`}
+//                       </span>
+//                     </div>
+//                     {project.completionDate && (
+//                       <span className="text-xs text-gray-500">
+//                         Completed: {project.completionDate}
+//                       </span>
+//                     )}
+//                   </div>
+//                 </li>
+//               ))}
+//             </ul>
+//           )}
+//         </div>
+//       </main>
+
+//       {/* Project Details Modal */}
+//       {isViewingDetails && selectedProject && (
+//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+//           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+//             <div className="p-6">
+//               <div className="flex justify-between items-start">
+//                 <div>
+//                   <h2 className="text-2xl font-bold text-gray-900">{selectedProject.title}</h2>
+//                   <p className="text-sm text-gray-500 mt-1">
+//                     {selectedProject.serviceType} • {selectedProject.provider} • {selectedProject.budget}
+//                   </p>
+//                 </div>
+//                 <button
+//                   onClick={() => {
+//                     setIsViewingDetails(false);
+//                     setSelectedProject(null);
+//                   }}
+//                   className="text-gray-400 hover:text-gray-500"
+//                 >
+//                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+//                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+//                   </svg>
+//                 </button>
+//               </div>
+
+//               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+//                 <div className="md:col-span-2">
+//                   <div className="bg-gray-50 p-4 rounded-lg">
+//                     <h3 className="text-lg font-medium text-gray-900 mb-3">Project Description</h3>
+//                     <p className="text-gray-700">{selectedProject.description}</p>
+//                   </div>
+
+//                   <div className="mt-6">
+//                     <h3 className="text-lg font-medium text-gray-900 mb-3">Project Updates</h3>
+//                     <div className="space-y-4">
+//                       {selectedProject.updates.map((update, index) => (
+//                         <div
+//                           key={index}
+//                           className={`p-4 rounded-lg ${update.sender === 'customer' ? 'bg-indigo-50' : update.sender === 'system' ? 'bg-gray-100' : 'bg-white border border-gray-200'}`}
+//                         >
+//                           <div className="flex justify-between items-start">
+//                             <div>
+//                               <span className="text-sm font-medium">
+//                                 {update.sender === 'customer' ? 'You' : update.sender === 'system' ? 'System' : selectedProject.provider}
+//                               </span>
+//                               <span className="text-xs text-gray-500 ml-2">{update.date}</span>
+//                             </div>
+//                             {update.sender === 'provider' && (
+//                               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">Provider</span>
+//                             )}
+//                           </div>
+//                           <p className="mt-1 text-gray-700">{update.message}</p>
+//                           {update.attachments.length > 0 && (
+//                             <div className="mt-2">
+//                               <h4 className="text-xs font-medium text-gray-500 mb-1">Attachments:</h4>
+//                               <div className="flex flex-wrap gap-2">
+//                                 {update.attachments.map((file, fileIndex) => (
+//                                   <div
+//                                     key={fileIndex}
+//                                     className="flex items-center space-x-2 p-2 bg-white rounded border border-gray-200 text-xs"
+//                                   >
+//                                     {getFileIcon(file.type)}
+//                                     <div>
+//                                       <p className="font-medium truncate max-w-xs">{file.name}</p>
+//                                       <p className="text-gray-500">{file.size}</p>
+//                                     </div>
+//                                   </div>
+//                                 ))}
+//                               </div>
+//                             </div>
+//                           )}
+//                         </div>
+//                       ))}
+//                     </div>
+
+//                     <div className="mt-6">
+//                       <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+//                         Send Message to Provider
+//                       </label>
+//                       <div className="flex space-x-2">
+//                         <input
+//                           type="text"
+//                           id="message"
+//                           value={newMessage}
+//                           onChange={(e) => setNewMessage(e.target.value)}
+//                           placeholder="Type your message here..."
+//                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+//                         />
+//                         <button
+//                           onClick={sendMessage}
+//                           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+//                         >
+//                           Send
+//                         </button>
+//                       </div>
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="space-y-6">
+//                   <div className="bg-white border border-gray-200 rounded-lg p-4">
+//                     <h3 className="text-lg font-medium text-gray-900 mb-3">Project Details</h3>
+//                     <div className="space-y-3">
+//                       <div>
+//                         <span className="text-sm text-gray-500">Status</span>
+//                         <p className={`text-sm font-medium ${projectStatuses[selectedProject.status].color} px-2 py-1 rounded-full inline-block`}>
+//                           {projectStatuses[selectedProject.status].label}
+//                         </p>
+//                       </div>
+//                       <div>
+//                         <span className="text-sm text-gray-500">Service Type</span>
+//                         <p className="text-sm font-medium text-gray-900">{selectedProject.serviceType}</p>
+//                       </div>
+//                       <div>
+//                         <span className="text-sm text-gray-500">Service Provider</span>
+//                         <p className="text-sm font-medium text-gray-900">{selectedProject.provider}</p>
+//                       </div>
+//                       <div>
+//                         <span className="text-sm text-gray-500">Location</span>
+//                         <p className="text-sm font-medium text-gray-900">{selectedProject.location}</p>
+//                       </div>
+//                       <div>
+//                         <span className="text-sm text-gray-500">Budget</span>
+//                         <p className="text-sm font-medium text-gray-900">{selectedProject.budget}</p>
+//                       </div>
+//                       <div>
+//                         <span className="text-sm text-gray-500">Start Date</span>
+//                         <p className="text-sm font-medium text-gray-900">{selectedProject.startDate}</p>
+//                       </div>
+//                       {selectedProject.estimatedCompletion && (
+//                         <div>
+//                           <span className="text-sm text-gray-500">Estimated Completion</span>
+//                           <p className="text-sm font-medium text-gray-900">{selectedProject.estimatedCompletion}</p>
+//                         </div>
+//                       )}
+//                       {selectedProject.completionDate && (
+//                         <div>
+//                           <span className="text-sm text-gray-500">Actual Completion</span>
+//                           <p className="text-sm font-medium text-gray-900">{selectedProject.completionDate}</p>
+//                         </div>
+//                       )}
+//                       {selectedProject.approvalDate && (
+//                         <div>
+//                           <span className="text-sm text-gray-500">Approval Date</span>
+//                           <p className="text-sm font-medium text-gray-900">{selectedProject.approvalDate}</p>
+//                         </div>
+//                       )}
+//                     </div>
+//                   </div>
+
+//                   <div className="bg-white border border-gray-200 rounded-lg p-4">
+//                     <h3 className="text-lg font-medium text-gray-900 mb-3">Project Files</h3>
+//                     <div className="space-y-2">
+//                       {selectedProject.files.map((file, index) => (
+//                         <div
+//                           key={index}
+//                           className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+//                           onClick={() => {
+//                             // In a real app, this would open the file
+//                             toast.info(`Opening ${file.name}`);
+//                           }}
+//                         >
+//                           {getFileIcon(file.type)}
+//                           <div className="flex-1 min-w-0">
+//                             <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+//                             <p className="text-xs text-gray-500">{file.size} • Uploaded {file.uploaded}</p>
+//                           </div>
+//                           <button
+//                             onClick={(e) => {
+//                               e.stopPropagation();
+//                               toast.info(`Downloading ${file.name}`);
+//                             }}
+//                             className="text-gray-400 hover:text-indigo-600"
+//                           >
+//                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+//                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+//                             </svg>
+//                           </button>
+//                         </div>
+//                       ))}
+//                     </div>
+//                   </div>
+
+//                   {selectedProject.status === 'COMPLETED' && (
+//                     <div className="bg-white border border-gray-200 rounded-lg p-4">
+//                       <h3 className="text-lg font-medium text-gray-900 mb-3">Project Completion</h3>
+//                       <p className="text-sm text-gray-700 mb-4">
+//                         The service provider has marked this project as completed. Please review the work and either approve or reject it.
+//                       </p>
+//                       <div className="flex space-x-3">
+//                         <button
+//                           onClick={() => {
+//                             setRejectionReason('');
+//                             setIsRejecting(false);
+//                             setIsApproving(true);
+//                             setTimeout(approveProject, 1000);
+//                           }}
+//                           disabled={isApproving || isRejecting}
+//                           className={`flex-1 px-4 py-2 rounded-md text-white ${isApproving ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} transition-colors`}
+//                         >
+//                           {isApproving ? 'Approving...' : 'Approve Project'}
+//                         </button>
+//                         <button
+//                           onClick={() => setIsRejecting(!isRejecting)}
+//                           disabled={isApproving || isRejecting}
+//                           className={`flex-1 px-4 py-2 rounded-md text-white ${isRejecting ? 'bg-red-400' : 'bg-red-600 hover:bg-red-700'} transition-colors`}
+//                         >
+//                           {isRejecting ? 'Cancel' : 'Reject Project'}
+//                         </button>
+//                       </div>
+//                       {isRejecting && (
+//                         <div className="mt-4">
+//                           <label htmlFor="rejectionReason" className="block text-sm font-medium text-gray-700 mb-1">
+//                             Reason for Rejection
+//                           </label>
+//                           <textarea
+//                             id="rejectionReason"
+//                             rows="3"
+//                             value={rejectionReason}
+//                             onChange={(e) => setRejectionReason(e.target.value)}
+//                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+//                             placeholder="Please explain why you're rejecting this work..."
+//                           ></textarea>
+//                           <button
+//                             onClick={rejectProject}
+//                             disabled={!rejectionReason.trim()}
+//                             className="mt-2 w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-300 transition-colors"
+//                           >
+//                             Submit Rejection
+//                           </button>
+//                         </div>
+//                       )}
+//                     </div>
+//                   )}
+//                 </div>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Files Modal */}
+//       {isViewingFiles && selectedProject && (
+//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+//           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+//             <div className="p-6">
+//               <div className="flex justify-between items-start">
+//                 <div>
+//                   <h2 className="text-2xl font-bold text-gray-900">Project Files</h2>
+//                   <p className="text-sm text-gray-500 mt-1">{selectedProject.title}</p>
+//                 </div>
+//                 <button
+//                   onClick={() => {
+//                     setIsViewingFiles(false);
+//                     setSelectedProject(null);
+//                   }}
+//                   className="text-gray-400 hover:text-gray-500"
+//                 >
+//                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+//                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+//                   </svg>
+//                 </button>
+//               </div>
+
+//               <div className="mt-6">
+//                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+//                   {selectedProject.files.map((file, index) => (
+//                     <div
+//                       key={index}
+//                       className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+//                       onClick={() => {
+//                         // In a real app, this would open the file
+//                         toast.info(`Opening ${file.name}`);
+//                       }}
+//                     >
+//                       <div className="flex flex-col items-center text-center">
+//                         {getFileIcon(file.type)}
+//                         <p className="mt-2 text-sm font-medium text-gray-900 truncate w-full">{file.name}</p>
+//                         <p className="text-xs text-gray-500">{file.size}</p>
+//                         <p className="text-xs text-gray-400 mt-1">Uploaded {file.uploaded}</p>
+//                         <button
+//                           onClick={(e) => {
+//                             e.stopPropagation();
+//                             toast.info(`Downloading ${file.name}`);
+//                           }}
+//                           className="mt-2 px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+//                         >
+//                           Download
+//                         </button>
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+
+//                 {selectedProject.updates.some(update => update.attachments.length > 0) && (
+//                   <>
+//                     <h3 className="text-lg font-medium text-gray-900 mt-8 mb-4">Update Attachments</h3>
+//                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+//                       {selectedProject.updates.map((update, updateIndex) =>
+//                         update.attachments.map((file, fileIndex) => (
+//                           <div
+//                             key={`${updateIndex}-${fileIndex}`}
+//                             className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+//                             onClick={() => {
+//                               // In a real app, this would open the file
+//                               toast.info(`Opening ${file.name}`);
+//                             }}
+//                           >
+//                             <div className="flex flex-col items-center text-center">
+//                               {getFileIcon(file.type)}
+//                               <p className="mt-2 text-sm font-medium text-gray-900 truncate w-full">{file.name}</p>
+//                               <p className="text-xs text-gray-500">{file.size}</p>
+//                               <p className="text-xs text-gray-400 mt-1">Added {update.date}</p>
+//                               <button
+//                                 onClick={(e) => {
+//                                   e.stopPropagation();
+//                                   toast.info(`Downloading ${file.name}`);
+//                                 }}
+//                                 className="mt-2 px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+//                               >
+//                                 Download
+//                               </button>
+//                             </div>
+//                           </div>
+//                         ))
+//                       )}
+//                     </div>
+//                   </>
+//                 )}
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// export default CustomerDashboard;
