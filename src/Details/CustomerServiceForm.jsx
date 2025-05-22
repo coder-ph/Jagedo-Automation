@@ -90,7 +90,7 @@ const CustomerServiceRequest = () => {
       draggable: true,
       progress: undefined,
       theme: "colored",
-      onClose: () => navigate('/customer-dashboard')
+      onClose: () => navigate('/dashboard-layout')
     });
     
     console.log('Service Request Submitted:', formData);
@@ -101,7 +101,7 @@ const CustomerServiceRequest = () => {
   };
 
   const goToDashboard = () => {
-    navigate('/customer-dashboard');
+    navigate('/dashboard-layout');
   };
 
   return (

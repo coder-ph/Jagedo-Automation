@@ -1,9 +1,9 @@
 import { Outlet } from 'react-router-dom';
-import DashboardNavbar from './customer/DashboardNavbar';
+// import DashboardNavbar from './dashboard/customer/DashboardNavbar';
 
 const DashboardLayout = ({ role, isAuthenticated, onLogout, children }) => {
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/dashboard-layout" replace />;
   }
 
   return (
@@ -17,4 +17,3 @@ const DashboardLayout = ({ role, isAuthenticated, onLogout, children }) => {
 };
 
 export default DashboardLayout;
-
