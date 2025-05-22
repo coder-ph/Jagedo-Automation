@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Places Autocomplete</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .result-card {
+            margin-top: 20px;
+            display: none;
+        }
+        .spinner {
+            display: none;
+            margin: 10px 0;
+        }
+        .place-item {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .place-item:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Simple Places Autocomplete</h1>
+        
+        <!-- Search Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Search for a Place</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="place-input" class="form-label">Search for a location:</label>
+                    <input type="text" class="form-control" id="place-input" placeholder="Start typing a place name...">
+                    <div class="form-text">Search for businesses, addresses, and points of interest</div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="use-location" checked>
+                    <label class="form-check-label" for="use-location">
+                        Use my current location for better results
+                    </label>
+                </div>
+                
+                <div id="location-info" class="alert alert-info" style="display: none;"></div>
+                
+                <!-- Results will appear here -->
+                <div id="results" class="mt-3"></div>
+            </div>
+        </div>
+        
+        <!-- Selected Place Details -->
+        <div class="card result-card" id="details-card">
+            <div class="card-header">
+                <h5>Place Details</h5>
+            </div>
+            <div class="card-body">
+                <div id="place-details">
+                    <p class="text-muted">Select a place to see details</p>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="spinner-border text-primary spinner" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Google Maps API -->
+    <script>
+        // Get the API key from the environment
+        const GOOGLE_API_KEY = '{{ config.GOOGLE_PLACES_API_KEY }}';
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_PLACES_API_KEY }}&libraries=places&callback=initMap" async defer></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let placesService;
+        let autocomplete;
+        let marker;
+        let userLocation = null;
+        
+        // DOM Elements
+        const placeInput = document.getElementById('place-input');
+        const useLocationCheckbox = document.getElementById('use-location');
+        const locationInfo = document.getElementById('location-info');
+        const resultsContainer = document.getElementById('results');
+        const placeDetails = document.getElementById('place-details');
+        const detailsCard = document.getElementById('details-card');
+        const spinner = document.querySelector('.spinner');
+        
+        // Initialize the page
+        function initMap() {
+            console.log('Google Maps API loaded');
+            
+            // Create a default map (centered on Kenya)
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 1.2921, lng: 36.8219 }, // Centered on Kenya
+                zoom: 6
+            });
+            
+            // Initialize places service
+            placesService = new google.maps.places.PlacesService(map);
+            
+            // Initialize autocomplete
+            initAutocomplete();
+            
+            // Try to get user's location if enabled
+            if (navigator.geolocation && useLocationCheckbox.checked) {
+                getUserLocation();
+            }
+        }
+        
+        // Initialize the autocomplete functionality
+        function initAutocomplete() {
+            // Create autocomplete instance
+            autocomplete = new google.maps.places.Autocomplete(placeInput, {
+                types: ['establishment'], // Limit to business locations
+                componentRestrictions: { country: 'ke' }, // Bias to Kenya
+                fields: ['place_id', 'name', 'formatted_address', 'geometry']
+            });
+            
+            // When a place is selected from the dropdown
+            autocomplete.addListener('place_changed', onPlaceChanged);
+            
+            // Handle manual entry and search
+            placeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && placeInput.value.trim()) {
+                    searchPlaces(placeInput.value.trim());
+                }
+            });
+        }
+        
+        // Handle place selection
+        function onPlaceChanged() {
+            const place = autocomplete.getPlace();
+            
+            if (!place.geometry) {
+                console.log('No details available for input: ' + place.name);
+                return;
+            }
+            
+            // Show the place on the map
+            showPlaceOnMap(place);
+            
+            // Get and display place details
+            getPlaceDetails(place.place_id);
+        }
+        
+        // Search for places using the Places API
+        function searchPlaces(query) {
+            if (!query || query.length < 3) {
+                resultsContainer.innerHTML = '<div class="alert alert-warning">Please enter at least 3 characters</div>';
+                return;
+            }
+            
+            showLoading(true);
+            resultsContainer.innerHTML = '';
+            
+            // Create a request object
+            const request = {
+                query: query,
+                fields: ['place_id', 'name', 'formatted_address', 'geometry'],
+                locationBias: null
+            };
+            
+            // Add location bias if available
+            if (userLocation && useLocationCheckbox.checked) {
+                request.location = new google.maps.LatLng(userLocation.lat, userLocation.lng);
+                request.radius = 50000; // 50km radius
+            }
+            
+            // Create a PlacesService instance
+            const service = new google.maps.places.PlacesService(map);
+            
+            // Search for places
+            service.textSearch(request, (results, status) => {
+                showLoading(false);
+                
+                if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                    displayResults(results);
+                } else {
+                    resultsContainer.innerHTML = `
+                        <div class="alert alert-warning">
+                            No results found. Please try a different search term.
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // Display search results
+        function displayResults(places) {
+            if (!places || places.length === 0) {
+                resultsContainer.innerHTML = '<div class="alert alert-info">No results found</div>';
+                return;
+            }
+            
+            const resultsHTML = places.map(place => `
+                <div class="place-item" onclick="selectPlace('${place.place_id}')">
+                    <div class="fw-bold">${place.name}</div>
+                    <div class="text-muted small">${place.formatted_address || 'Address not available'}</div>
+                </div>
+            `).join('');
+            
+            resultsContainer.innerHTML = resultsHTML;
+        }
+        
+        // Select a place and show its details
+        window.selectPlace = function(placeId) {
+            showLoading(true);
+            getPlaceDetails(placeId);
+        };
+        
+        // Get detailed information about a place
+        function getPlaceDetails(placeId) {
+            if (!placeId) return;
+            
+            const request = {
+                placeId: placeId,
+                fields: [
+                    'name',
+                    'formatted_address',
+                    'formatted_phone_number',
+                    'website',
+                    'rating',
+                    'user_ratings_total',
+                    'opening_hours',
+                    'photos',
+                    'geometry',
+                    'url',
+                    'types'
+                ]
+            };
+            
+            placesService.getDetails(request, (place, status) => {
+                showLoading(false);
+                
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    displayPlaceDetails(place);
+                } else {
+                    console.error('Error getting place details:', status);
+                    placeDetails.innerHTML = `
+                        <div class="alert alert-danger">
+                            Could not load details for this place. Please try again.
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // Display place details
+        function displayPlaceDetails(place) {
+            if (!place) return;
+            
+            // Show the details card
+            detailsCard.style.display = 'block';
+            
+            // Build the details HTML
+            let detailsHTML = `
+                <h4>${place.name || 'No name available'}</h4>
+                <p class="text-muted">
+                    <i class="bi bi-geo-alt"></i> ${place.formatted_address || 'Address not available'}
+                </p>
+                <hr>
+            `;
+            
+            // Add phone number if available
+            if (place.formatted_phone_number) {
+                detailsHTML += `
+                    <p>
+                        <strong>Phone:</strong> 
+                        <a href="tel:${place.formatted_phone_number}">${place.formatted_phone_number}</a>
+                    </p>
+                `;
+            }
+            
+            // Add website if available
+            if (place.website) {
+                detailsHTML += `
+                    <p>
+                        <strong>Website:</strong> 
+                        <a href="${place.url}" target="_blank" rel="noopener noreferrer">
+                            ${place.website}
+                        </a>
+                    </p>
+                `;
+            }
+            
+            // Add rating if available
+            if (place.rating) {
+                let stars = '';
+                const fullStars = Math.round(place.rating);
+                
+                for (let i = 0; i < 5; i++) {
+                    if (i < fullStars) {
+                        stars += '★';
+                    } else {
+                        stars += '☆';
+                    }
+                }
+                
+                detailsHTML += `
+                    <p>
+                        <strong>Rating:</strong> 
+                        <span class="text-warning">${stars}</span> 
+                        (${place.user_ratings_total || 0} reviews)
+                    </p>
+                `;
+            }
+            
+            // Add opening hours if available
+            if (place.opening_hours && place.opening_hours.weekday_text) {
+                detailsHTML += `
+                    <p><strong>Opening Hours:</strong></p>
+                    <ul class="list-unstyled">
+                        ${place.opening_hours.weekday_text.map(day => 
+                            `<li>${day}</li>`
+                        ).join('')}
+                    </ul>
+                `;
+            }
+            
+            // Add Google Maps link
+            detailsHTML += `
+                <div class="mt-3">
+                    <a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" 
+                       target="_blank" 
+                       class="btn btn-outline-primary btn-sm">
+                        View on Google Maps
+                    </a>
+                </div>
+            `;
+            
+            // Update the DOM
+            placeDetails.innerHTML = detailsHTML;
+            
+            // Show the place on the map
+            showPlaceOnMap(place);
+            
+            // Scroll to the details
+            detailsCard.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Show a place on the map
+        function showPlaceOnMap(place) {
+            if (!place.geometry || !place.geometry.location) return;
+            
+            // Center the map on the place
+            map.setCenter(place.geometry.location);
+            map.setZoom(15);
+            
+            // Remove any existing marker
+            if (marker) {
+                marker.setMap(null);
+            }
+            
+            // Add a marker for the place
+            marker = new google.maps.Marker({
+                map: map,
+                position: place.geometry.location,
+                title: place.name || 'Selected place'
+            });
+        }
+        
+        // Get the user's current location
+        function getUserLocation() {
+            if (!navigator.geolocation) {
+                locationInfo.textContent = 'Geolocation is not supported by your browser';
+                locationInfo.style.display = 'block';
+                return;
+            }
+            
+            locationInfo.textContent = 'Getting your location...';
+            locationInfo.style.display = 'block';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    
+                    locationInfo.textContent = `Using your location (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                    locationInfo.className = 'alert alert-success';
+                    
+                    // Update the map to show the user's location
+                    map.setCenter(userLocation);
+                    map.setZoom(12);
+                    
+                    // Add a marker for the user's location
+                    new google.maps.Marker({
+                        position: userLocation,
+                        map: map,
+                        title: 'Your Location',
+                        icon: {
+                            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        }
+                    });
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    locationInfo.textContent = 'Unable to retrieve your location';
+                    locationInfo.className = 'alert alert-warning';
+                    useLocationCheckbox.checked = false;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        // Toggle location usage
+        useLocationCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                getUserLocation();
+            } else {
+                userLocation = null;
+                locationInfo.style.display = 'none';
+            }
+        });
+        
+        // Show/hide loading spinner
+        function showLoading(show) {
+            spinner.style.display = show ? 'inline-block' : 'none';
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (map) {
+                google.maps.event.trigger(map, 'resize');
+            }
+        });
+    </script>
+</body>
+</html>
