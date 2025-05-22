@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Places Autocomplete Example</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .result-card {
+            margin-top: 20px;
+            display: none;
+        }
+        .spinner {
+            display: none;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Google Places Autocomplete</h1>
+        
+        <!-- Authentication Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>1. Authenticate with Google</h5>
+            </div>
+            <div class="card-body">
+                <button id="auth-button" class="btn btn-primary">Sign in with Google</button>
+                <div id="auth-status" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>2. Search for a Place</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="place-input" class="form-label">Search for a location:</label>
+                    <input type="text" class="form-control" id="place-input" placeholder="Enter a location...">
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="use-location" checked>
+                    <label class="form-check-label" for="use-location">
+                        Use my current location for better results
+                    </label>
+                </div>
+                <div id="location-info" class="alert alert-info" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="card result-card" id="results-card">
+            <div class="card-header">
+                <h5>Results</h5>
+            </div>
+            <div class="card-body">
+                <div id="results" class="list-group">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="spinner-border text-primary spinner" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <script>
+        // Base URL for API endpoints
+        const API_BASE_URL = 'http://localhost:5000';
+        
+        // DOM Elements
+        const authButton = document.getElementById('auth-button');
+        const authStatus = document.getElementById('auth-status');
+        const placeInput = document.getElementById('place-input');
+        const useLocationCheckbox = document.getElementById('use-location');
+        const locationInfo = document.getElementById('location-info');
+        const resultsCard = document.getElementById('results-card');
+        const resultsContainer = document.getElementById('results');
+        const spinner = document.querySelector('.spinner');
+        
+        // User's current location
+        let userLocation = null;
+        
+        // Check if user is authenticated
+        function checkAuthStatus() {
+            const token = localStorage.getItem('jwt_token');
+            if (token) {
+                authStatus.innerHTML = '<span class="text-success">✓ Authenticated</span>';
+                authButton.textContent = 'Re-authenticate with Google';
+                return true;
+            } else {
+                authStatus.innerHTML = '<span class="text-warning">Not authenticated</span>';
+                authButton.textContent = 'Sign in with Google';
+                return false;
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+            setupEventListeners();
+            
+            // Try to get user's location if enabled
+            if (navigator.geolocation && useLocationCheckbox.checked) {
+                getUserLocation();
+            }
+        });
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            // Auth button click
+            authButton.addEventListener('click', function() {
+                fetch(`${API_BASE_URL}/api/places/auth/url`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.url) {
+                        // Open the Google OAuth consent screen in a popup
+                        const width = 600;
+                        const height = 700;
+                        const left = (window.innerWidth - width) / 2;
+                        const top = (window.innerHeight - height) / 2;
+                        
+                        window.popup = window.open(
+                            data.url,
+                            'google-auth',
+                            `width=${width},height=${height},top=${top},left=${left}`
+                        );
+                        
+                        // Poll for authentication completion
+                        checkAuthCompletion();
+                    } else {
+                        throw new Error('Failed to get auth URL');
+                    }
+                })
+                .catch(error => {
+                    console.error('Auth error:', error);
+                    authStatus.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
+                });
+            });
+            
+            // Search input debounce
+            let searchTimeout;
+            placeInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
+                
+                if (query.length < 3) {
+                    resultsCard.style.display = 'none';
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    searchPlaces(query);
+                }, 500);
+            });
+            
+            // Toggle location usage
+            useLocationCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    getUserLocation();
+                } else {
+                    userLocation = null;
+                    locationInfo.style.display = 'none';
+                }
+            });
+        }
+        
+        // Get user's current location
+        function getUserLocation() {
+            if (!navigator.geolocation) {
+                locationInfo.textContent = 'Geolocation is not supported by your browser';
+                locationInfo.style.display = 'block';
+                return;
+            }
+            
+            locationInfo.textContent = 'Getting your location...';
+            locationInfo.style.display = 'block';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    locationInfo.textContent = `Using your location (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                    locationInfo.style.display = 'block';
+                    
+                    // If there's a search term, perform a new search with location
+                    if (placeInput.value.trim().length >= 3) {
+                        searchPlaces(placeInput.value.trim());
+                    }
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    locationInfo.textContent = 'Unable to retrieve your location';
+                    locationInfo.className = 'alert alert-warning';
+                    useLocationCheckbox.checked = false;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                }
+            );
+        }
+        
+        // Search for places
+        function searchPlaces(query) {
+            showLoading(true);
+            resultsContainer.innerHTML = '';
+            
+            let url = `${API_BASE_URL}/api/places/autocomplete?query=${encodeURIComponent(query)}`;
+            
+            // Add location bias if available
+            if (userLocation && useLocationCheckbox.checked) {
+                url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`;
+            }
+            
+            fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // Handle unauthorized
+                        localStorage.removeItem('jwt_token');
+                        checkAuthStatus();
+                        throw new Error('Please sign in to use this feature');
+                    }
+                    return response.json().then(err => { throw new Error(err.error || 'Failed to fetch places'); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                displayResults(data.predictions || []);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                resultsContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        ${error.message || 'An error occurred while searching for places'}
+                    </div>
+                `;
+                resultsCard.style.display = 'block';
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+        
+        // Display search results
+        function displayResults(predictions) {
+            if (predictions.length === 0) {
+                resultsContainer.innerHTML = '<div class="alert alert-info">No results found</div>';
+                resultsCard.style.display = 'block';
+                return;
+            }
+            
+            resultsContainer.innerHTML = predictions.map(prediction => `
+                <div class="list-group-item list-group-item-action" 
+                     data-place-id="${prediction.place_id}"
+                     onclick="getPlaceDetails('${prediction.place_id}')">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${prediction.structured_formatting.main_text}</h6>
+                        <small>${prediction.types ? prediction.types[0] : ''}</small>
+                    </div>
+                    <p class="mb-1">${prediction.structured_formatting.secondary_text}</p>
+                </div>
+            `).join('');
+            
+            resultsCard.style.display = 'block';
+        }
+        
+        // Get place details
+        window.getPlaceDetails = function(placeId) {
+            showLoading(true);
+            
+            fetch(`${API_BASE_URL}/api/places/details/${placeId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Failed to fetch place details'); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const place = data.result;
+                alert(`Selected: ${place.name}\nAddress: ${place.formatted_address}\nLocation: ${place.geometry.location.lat}, ${place.geometry.location.lng}`);
+            })
+            .catch(error => {
+                console.error('Details error:', error);
+                alert(`Error: ${error.message}`);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        };
+        
+        // Check if OAuth flow is complete
+        function checkAuthCompletion() {
+            const checkInterval = setInterval(() => {
+                // Check if the popup is closed
+                if (window.popup && window.popup.closed) {
+                    clearInterval(checkInterval);
+                    
+                    // Check if we have a token
+                    const token = localStorage.getItem('jwt_token');
+                    if (token) {
+                        checkAuthStatus();
+                    }
+                }
+            }, 500);
+        }
+        
+        // Show/hide loading spinner
+        function showLoading(show) {
+            spinner.style.display = show ? 'block' : 'none';
+        }
+        
+        // Listen for messages from the popup
+        window.addEventListener('message', function(event) {
+            if (event.origin !== window.location.origin) return;
+            
+            if (event.data.type === 'AUTH_SUCCESS') {
+                // Store the JWT token
+                localStorage.setItem('jwt_token', event.data.token);
+                checkAuthStatus();
+                
+                // Close the popup if it's still open
+                if (window.popup && !window.popup.closed) {
+                    window.popup.close();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
