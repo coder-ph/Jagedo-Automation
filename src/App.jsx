@@ -6,8 +6,18 @@ import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage';
 import CustomerServiceForm from './details/CustomerServiceForm';
-// import CustomerDashboard from './components/CustomerDashboard';
+import Dashboard from './components/Dashboard';
 import ProtectedRoute from './logins/ProtectedRoute';
+import RequestHistory from './components/RequestHistory';
+import Search from './components/Search';
+import History from './components/History';
+import Notifications from './components/Notifications';
+import RequestDetail from './components/RequestDetail';
+
+// Simple placeholder components for any missing ones
+function Documents() {
+  return <div className="p-4">Documents Management</div>;
+}
 
 function App() {
   return (
@@ -25,7 +35,13 @@ function App() {
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/customer-request" element={<CustomerServiceForm />} />
-              {/* <Route path="/customer-dashboard" element={<CustomerDashboard />} /> */}
+              <Route path="/customer-dashboard" element={<Dashboard />} />
+              <Route path="/request-history" element={<RequestHistory />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/request/:id" element={<RequestDetail />} />
             </Route>
 
             {/* Fallback Route */}
@@ -39,4 +55,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 

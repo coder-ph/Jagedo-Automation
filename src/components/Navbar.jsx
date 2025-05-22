@@ -34,40 +34,12 @@ const Navbar = () => {
                 />
               </Link>
             </div>
-
-            {/* Desktop Navigation Links */}
-            {isAuth && (
-              <div className="hidden md:ml-8 md:flex md:space-x-6">
-                <Link
-                  to="/customer-request"
-                  className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-700 hover:text-indigo-600 hover:border-indigo-500 transition-all duration-200"
-                  activeClassName="border-indigo-500 text-indigo-600"
-                >
-                  New Request
-                </Link>
-                <Link
-                  to="/customer-dashboard"
-                  className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-700 hover:text-indigo-600 hover:border-indigo-500 transition-all duration-200"
-                  activeClassName="border-indigo-500 text-indigo-600"
-                >
-                  Dashboard
-                </Link>
-              </div>
-            )}
           </div>
 
           {/* Desktop Auth Section */}
           <div className="hidden md:ml-6 md:flex md:items-center">
             {isAuth ? (
               <div className="flex items-center space-x-4">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-indigo-100 p-1 rounded-full text-indigo-600">
-                    <FaUser className="h-5 w-5" />
-                  </div>
-                  <span className="ml-2 text-sm font-medium text-gray-700">
-                    {user?.name || 'User'}
-                  </span>
-                </div>
                 <button
                   onClick={handleLogout}
                   className="flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
@@ -115,39 +87,21 @@ const Navbar = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200">
-          <div className="pt-2 pb-3 space-y-1">
-            {isAuth && (
-              <>
-                <Link
-                  to="/customer-request"
-                  className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-500 transition-all duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  New Request
-                </Link>
-                <Link
-                  to="/customer-dashboard"
-                  className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-500 transition-all duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-              </>
-            )}
-          </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
             {isAuth ? (
-              <div className="flex items-center px-4">
-                <div className="flex-shrink-0">
-                  <div className="bg-indigo-100 p-2 rounded-full text-indigo-600">
-                    <FaUser className="h-5 w-5" />
+              <div className="mt-3 px-2">
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-white bg-red-600 hover:bg-red-700 transition-colors duration-200"
+                >
+                  <div className="flex items-center">
+                    <FaSignOutAlt className="h-4 w-4 mr-2" />
+                    Logout
                   </div>
-                </div>
-                <div className="ml-3">
-                  <div className="text-sm font-medium text-gray-700">
-                    {user?.name || 'User'}
-                  </div>
-                </div>
+                </button>
               </div>
             ) : (
               <div className="space-y-2 px-2">
@@ -165,22 +119,6 @@ const Navbar = () => {
                 >
                   Sign Up
                 </Link>
-              </div>
-            )}
-            {isAuth && (
-              <div className="mt-3 px-2">
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-white bg-red-600 hover:bg-red-700 transition-colors duration-200"
-                >
-                  <div className="flex items-center">
-                    <FaSignOutAlt className="h-4 w-4 mr-2" />
-                    Logout
-                  </div>
-                </button>
               </div>
             )}
           </div>
