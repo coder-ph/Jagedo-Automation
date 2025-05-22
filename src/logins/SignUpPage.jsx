@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUser, FaEnvelope, FaLock } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaLock, FaMapMarkerAlt } from 'react-icons/fa';
 
 const SignUpPage = () => {
   const navigate = useNavigate();
@@ -9,7 +9,8 @@ const SignUpPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    userType: ''
+    userType: '',
+    location: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,6 +31,10 @@ const SignUpPage = () => {
       return setError('Please select a user type.');
     }
 
+    if (!formData.location) {
+      return setError('Please enter your location.');
+    }
+
     if (formData.password !== formData.confirmPassword) {
       return setError('Passwords do not match.');
     }
@@ -37,14 +42,30 @@ const SignUpPage = () => {
     setLoading(true);
 
     try {
-      // Simulate API request
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Registering user:', formData);
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.userType,
+          location: formData.location
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
 
       // On success
       navigate('/login');
     } catch (err) {
-      setError('Registration failed. Please try again.');
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -113,6 +134,19 @@ const SignUpPage = () => {
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
                 placeholder="Confirm Password"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <FaMapMarkerAlt className="absolute top-3 left-3 text-gray-400" />
+              <input
+                type="text"
+                name="location"
+                value={formData.location}
+                onChange={handleInputChange}
+                placeholder="Your Location"
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 required
               />
