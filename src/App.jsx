@@ -5,7 +5,7 @@ import Hero from './components/Hero';
 import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage';
-import CustomerServiceForm from './details/CustomerServiceForm';
+import CustomerServiceForm from './Details/CustomerServiceForm';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './logins/ProtectedRoute';
 import RequestHistory from './components/RequestHistory';
@@ -13,6 +13,7 @@ import Search from './components/Search';
 import History from './components/History';
 import Notifications from './components/Notifications';
 import RequestDetail from './components/RequestDetail';
+import ProfessionalForm from './Details/ProfessionalForm';
 
 // Simple placeholder components for any missing ones
 function Documents() {
@@ -42,6 +43,7 @@ function App() {
               <Route path="/history" element={<History />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/request/:id" element={<RequestDetail />} />
+              <Route path="/professional-form" element={<ProfessionalForm />} />
             </Route>
 
             {/* Fallback Route */}
