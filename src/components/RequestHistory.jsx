@@ -1,8 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { FaFilter, FaFileAlt, FaCalendarAlt, FaSearch } from 'react-icons/fa';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaFilter, FaFileAlt, FaCalendarAlt, FaSearch, FaArrowLeft } from 'react-icons/fa';
 
 const RequestHistory = () => {
+  const navigate = useNavigate();
+  
   // Mock data - replace with API calls
   const requests = [
     { id: "JPG-1001", type: "Land Survey", status: "Completed", date: "2023-06-15", documents: 3 },
@@ -12,8 +14,21 @@ const RequestHistory = () => {
     { id: "JPG-1005", type: "Geotechnical Report", status: "Archived", date: "2023-04-30", documents: 5 },
   ];
 
+  const handleBack = () => {
+    navigate(-1); // Go back to previous page
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Back button added here */}
+      <button 
+        onClick={handleBack}
+        className="flex items-center text-indigo-600 hover:text-indigo-800 mb-6 transition-colors"
+      >
+        <FaArrowLeft className="mr-2" />
+        Back
+      </button>
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Request History</h1>
         <div className="mt-4 md:mt-0 flex space-x-3">
