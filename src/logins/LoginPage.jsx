@@ -34,14 +34,29 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Replace with actual API call
-      const response = await mockLoginApi(formData.email, formData.password);
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
       
-      // Store token and user data
-      setAuthData(response.token, response.user);
-      
-      // Redirect to dashboard
-      navigate('/customer-dashboard');
+      // Store user data if needed
+      localStorage.setItem('user', JSON.stringify(data.data.user));
+
+      // On successful login, redirect to customer service request page
+      navigate('/customer-request');
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
