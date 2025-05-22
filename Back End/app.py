@@ -1528,16 +1528,53 @@ def send_sms(to, message):
     print(f"[MOCK] SMS sent to {to}: {message}")
     return True
 
+def get_google_oauth2_token():
+    """Get OAuth 2.0 token for Google APIs"""
+    token_url = os.getenv('GOOGLE_TOKEN_URI')
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    
+    if not all([token_url, client_id, client_secret]):
+        return None, 'Missing OAuth 2.0 configuration'
+    
+    try:
+        response = requests.post(
+            token_url,
+            data={
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'scope': 'https://www.googleapis.com/auth/places'
+            }
+        )
+        response.raise_for_status()
+        token_data = response.json()
+        return token_data.get('access_token'), None
+    except Exception as e:
+        return None, str(e)
+
 def get_place_autocomplete(query, session_token=None, location=None, radius=50000, language='en'):
-   
-    GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
-    if not GOOGLE_PLACES_API_KEY:
-        return {'error': 'Google Places API key not configured'}, 500
-        
-    base_url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+    # First try with OAuth 2.0
+    access_token, error = get_google_oauth2_token()
+    
+    base_url = 'https://places.googleapis.com/v1/places:autocomplete'
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.id,places.types',
+    }
+    
+    if access_token:
+        headers['Authorization'] = f'Bearer {access_token}'
+    else:
+        # Fall back to API key if OAuth fails
+        api_key = os.getenv('GOOGLE_PLACES_API_KEY')
+        if not api_key:
+            return {'error': 'Google Places authentication not configured'}, 500
+        params = {'key': api_key}
+        base_url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+    
     params = {
         'input': query,
-        'key': GOOGLE_PLACES_API_KEY,
         'types': 'address|establishment|geocode',
         'language': language
     }
@@ -1575,25 +1612,38 @@ def get_place_autocomplete(query, session_token=None, location=None, radius=5000
 
 
 def get_place_details(place_id, session_token=None, fields=None):
+    # First try with OAuth 2.0
+    access_token, error = get_google_oauth2_token()
     
-    GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY')
-    if not GOOGLE_PLACES_API_KEY:
-        return {'error': 'Google Places API key not configured'}, 500
+    if access_token:
+        base_url = f'https://places.googleapis.com/v1/places/{place_id}'
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-FieldMask': 'id,displayName,formattedAddress,location,types,website,internationalPhoneNumber,addressComponents,regularOpeningHours,utcOffsetMinutes,priceLevel,rating,userRatingCount,reviews',
+            'Authorization': f'Bearer {access_token}'
+        }
+        params = {}
+    else:
+        # Fall back to API key if OAuth fails
+        api_key = os.getenv('GOOGLE_PLACES_API_KEY')
+        if not api_key:
+            return {'error': 'Google Places authentication not configured'}, 500
+            
+        base_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+        headers = {}
         
-    base_url = 'https://maps.googleapis.com/maps/api/place/details/json'
-    
-    if fields is None:
-        fields = [
-            'name', 'formatted_address', 'geometry', 'place_id',
-            'formatted_phone_number', 'international_phone_number',
-            'address_components', 'types', 'url', 'website', 'opening_hours'
-        ]
-        
-    params = {
-        'place_id': place_id,
-        'key': GOOGLE_PLACES_API_KEY,
-        'fields': ','.join(fields)
-    }
+        if fields is None:
+            fields = [
+                'name', 'formatted_address', 'geometry', 'place_id',
+                'formatted_phone_number', 'international_phone_number',
+                'address_components', 'types', 'url', 'website', 'opening_hours'
+            ]
+            
+        params = {
+            'place_id': place_id,
+            'key': api_key,
+            'fields': ','.join(fields)
+        }
     
     if session_token:
         params['sessiontoken'] = session_token

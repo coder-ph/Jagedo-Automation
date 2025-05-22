@@ -1,9 +1,17 @@
 import unittest
 import os
+import sys
 import json
 import unittest.mock as mock
+import bcrypt
 from dotenv import load_dotenv
-from app import app, db
+
+# Add the project root directory to the path
+current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from app import create_app, db
 
 # Load environment variables
 load_dotenv()
@@ -61,15 +69,21 @@ MOCK_PLACE_DETAILS_RESPONSE = {
 class TestPlacesAPI(unittest.TestCase):    
     def setUp(self):
         """Set up test client and configure app for testing"""
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
-        self.app = app.test_client()
-        self.app_context = app.app_context()
+        self.app = create_app({
+            'TESTING': True,
+            'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+            'WTF_CSRF_ENABLED': False
+        })
+        
+        self.client = self.app.test_client()
+        self.app_context = self.app.app_context()
         self.app_context.push()
         
-        # Create a test user and get auth token
-        self.test_email = "test_places@example.com"
-        self.test_password = "testpass123"
+        # Create tables
+        db.create_all()
+        
+        # Create a test user
+        self.test_user = self._create_test_user()
         self.auth_token = self._get_auth_token()
         
         # Common headers with auth token
@@ -80,16 +94,40 @@ class TestPlacesAPI(unittest.TestCase):
     
     def tearDown(self):
         """Clean up after each test"""
-        with app.app_context():
+        with self.app.app_context():
             db.session.remove()
+            db.drop_all()
+        self.app_context.pop()
     
+    def _create_test_user(self):
+        """Create a test user with a unique email"""
+        from app.models.user import User, UserRole
+        import time
+        
+        # Generate a unique email using timestamp
+        timestamp = int(time.time() * 1000)
+        email = f'test_{timestamp}@example.com'
+        
+        user = User(
+            email=email,
+            _password=bcrypt.hashpw('testpass123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
+            name=f'Test User {timestamp}',
+            phone=f'+254712345{timestamp % 10000:04d}',
+            role=UserRole.CUSTOMER,
+            location='Nairobi, Kenya',
+            is_active=True
+        )
+        db.session.add(user)
+        db.session.commit()
+        return user
+        
     def _get_auth_token(self):
         """Helper to get auth token for test user"""
         # Create test user if not exists
-        from models import User, UserRole
+        from app.models.user import User, UserRole
         from flask_bcrypt import generate_password_hash
         
-        with app.app_context():
+        with self.app.app_context():
             user = User.query.filter_by(email=self.test_email).first()
             if not user:
                 # Create user with hashed password

@@ -48,12 +48,25 @@ class User(BaseModel):
     reviews_received = db.relationship('Review', foreign_keys='Review.professional_id', backref='professional', lazy=True)
     reviews_given = db.relationship('Review', foreign_keys='Review.customer_id', backref='customer', lazy=True)
     
+    # Relationships for attachments
+    uploaded_attachments = db.relationship(
+        'Attachment',
+        foreign_keys='Attachment.uploaded_by',
+        back_populates='uploader',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
+    
+    user_attachments = db.relationship(
+        'Attachment',
+        foreign_keys='Attachment.user_id',
+        back_populates='user',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
+    
     # Relationships for payments
     payments = db.relationship('PaymentTransaction', back_populates='user')
-    
-    # Relationships for attachments
-    uploaded_attachments = db.relationship('Attachment', foreign_keys='Attachment.uploaded_by', backref='uploader', lazy=True)
-    user_attachments = db.relationship('Attachment', foreign_keys='Attachment.user_id', backref='user', lazy=True)
     
     @property
     def password(self):
