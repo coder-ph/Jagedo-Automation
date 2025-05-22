@@ -1,14 +1,15 @@
 // src/logins/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaUser, FaLock, FaEye, FaEyeSlash, FaUserTie, FaUserCircle } from 'react-icons/fa';
 import { setAuthData, isAuthenticated } from './auth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    userType: 'customer' // Default to customer
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,9 +17,19 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      navigate('/customer-dashboard');
+      // Redirect based on user role stored in auth
+      const user = JSON.parse(localStorage.getItem('user'));
+      redirectBasedOnRole(user.roles);
     }
   }, [navigate]);
+
+  const redirectBasedOnRole = (roles) => {
+    if (roles.includes('professional')) {
+      navigate('/professional-dashboard');
+    } else {
+      navigate('/customer-dashboard');
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -57,6 +68,7 @@ const LoginPage = () => {
 
       // On successful login, redirect to customer service request page
       navigate('/customer-request');
+      // redirectBasedOnRole(response.user.roles);
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
@@ -64,22 +76,39 @@ const LoginPage = () => {
     }
   };
 
-  // Mock API function - replace with real API call
-  const mockLoginApi = async (email, password) => {
+  // Enhanced mock API function with professional login
+  const mockLoginApi = async (email, password, userType) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    if (email === 'mbani@gmail.com' && password === '1234') {
+    // Customer login
+    if (email === 'customer@example.com' && password === '1234' && userType === 'customer') {
       return {
-        token: 'mock-jwt-token-1234567890',
+        token: 'mock-jwt-token-customer-123',
         user: {
           id: '1',
           email: email,
-          name: 'Demo User',
+          name: 'Demo Customer',
           roles: ['customer']
         }
       };
     }
-    throw new Error('Invalid credentials');
+    
+    // Professional login
+    if (email === 'professional@example.com' && password === '1234' && userType === 'professional') {
+      return {
+        token: 'mock-jwt-token-professional-456',
+        user: {
+          id: '2',
+          email: email,
+          name: 'Demo Professional',
+          roles: ['professional'],
+          specialization: 'Contractor',
+          rating: 4.8
+        }
+      };
+    }
+    
+    throw new Error('Invalid credentials or user type');
   };
 
   const togglePasswordVisibility = () => {
@@ -99,6 +128,36 @@ const LoginPage = () => {
               <p>{error}</p>
             </div>
           )}
+
+          {/* User Type Selection */}
+          <div className="flex justify-center space-x-4">
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="userType"
+                value="customer"
+                checked={formData.userType === 'customer'}
+                onChange={handleInputChange}
+                className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              />
+              <span className="ml-2 flex items-center">
+                <FaUserCircle className="mr-1" /> Customer
+              </span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="userType"
+                value="professional"
+                checked={formData.userType === 'professional'}
+                onChange={handleInputChange}
+                className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              />
+              <span className="ml-2 flex items-center">
+                <FaUserTie className="mr-1" /> Professional
+              </span>
+            </label>
+          </div>
 
           <div className="space-y-4">
             <div className="relative">
@@ -183,6 +242,11 @@ const LoginPage = () => {
               Sign up
             </a>
           </p>
+          {formData.userType === 'professional' && (
+            <p className="text-xs text-gray-500 mt-2">
+              Professionals must complete a verification process after registration
+            </p>
+          )}
         </div>
       </div>
     </div>
