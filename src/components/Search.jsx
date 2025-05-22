@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { FaSearch, FaFilter, FaFileAlt, FaMapMarkerAlt, FaCalendarAlt } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaFileAlt, FaMapMarkerAlt, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const Search = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
@@ -34,8 +36,21 @@ const Search = () => {
     }
   };
 
+  const handleBack = () => {
+    navigate(-1); // Go back to previous page
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Back button added here */}
+      <button 
+        onClick={handleBack}
+        className="flex items-center text-indigo-600 hover:text-indigo-800 mb-6 transition-colors"
+      >
+        <FaArrowLeft className="mr-2" />
+        Back
+      </button>
+
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Search Japageo Resources</h1>
         <p className="text-lg text-gray-600">Find requests, documents, and location data</p>
