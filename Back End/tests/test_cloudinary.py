@@ -222,6 +222,116 @@ class CloudinaryTestCase(unittest.TestCase):
         # Clean up
         if attachment and attachment.file_url:
             self.mock_cloudinary_destroy(attachment.file_url)
+    
+    @patch('app.routes.document.jwt_required', return_value=lambda f: f)
+    @patch('app.routes.document.get_jwt_identity')
+    @patch('flask_jwt_extended.view_decorators.verify_jwt_in_request')
+    @patch('app.routes.document.User')
+    def test_winning_bid_document_upload(self, mock_user, mock_verify_jwt, mock_jwt_identity, mock_jwt_required):
+        """Test that a winning bid professional can upload documents to a job."""
+        # Create a professional user who will be the winning bidder
+        winning_pro = User(
+            name='Winning Pro',
+            email='winning@example.com',
+            password='testpass123',
+            location='Test Location',
+            role='professional'
+        )
+        db.session.add(winning_pro)
+        
+        # Create a customer user
+        customer = User(
+            name='Test Customer',
+            email='customer@example.com',
+            password='testpass123',
+            location='Test Location',
+            role='customer'
+        )
+        db.session.add(customer)
+        
+        # Create a job
+        from app.models import Job, Category
+        from app.models.enums import JobStatus, PaymentStatus
+        
+        # Create a test category first
+        category = Category(name='Test Category')
+        db.session.add(category)
+        db.session.commit()
+        
+        job = Job(
+            title='Test Job',
+            description='Test Description',
+            customer_id=customer.id,
+            category_id=category.id,
+            location='Test Location',
+            status=JobStatus.AWARDED,
+            payment_status=PaymentStatus.PENDING,
+            budget=1000.00,
+            assigned_contractor_id=winning_pro.id
+        )
+        db.session.add(job)
+        db.session.commit()
+        
+        # Setup mocks
+        mock_jwt_identity.return_value = winning_pro.id
+        mock_verify_jwt.return_value = True
+        
+        # Setup User.query.get to return our test users
+        def user_get_side_effect(user_id):
+            if user_id == winning_pro.id:
+                return winning_pro
+            elif user_id == customer.id:
+                return customer
+            return None
+            
+        mock_user.query.get.side_effect = user_get_side_effect
+        
+        # Create a test file for upload
+        test_content = b'Test file content'
+        test_file = self.create_test_file('test_upload.txt', test_content)
+        
+        # Set up the mock return value for Cloudinary
+        self.mock_cloudinary_upload.return_value = {
+            'public_id': 'test_public_id',
+            'secure_url': 'https://res.cloudinary.com/test/image/upload/test_public_id.jpg',
+            'url': 'http://res.cloudinary.com/test/image/upload/test_public_id.jpg',
+            'resource_type': 'auto'
+        }
+        
+        # Prepare form data for upload
+        data = {
+            'file': test_file,
+            'document_type': 'job',
+            'job_id': job.id,
+            'user_id': winning_pro.id,
+            'title': 'Test Upload',
+            'description': 'Test file upload'
+        }
+        
+        # Make the request
+        response = self.client.post(
+            '/api/documents/upload',
+            data=data,
+            content_type='multipart/form-data',
+            headers={'Authorization': 'Bearer test_token'}
+        )
+        
+        # Check the response
+        self.assertEqual(response.status_code, 201)
+        response_data = response.get_json()
+        self.assertIn('attachment', response_data)
+        self.assertTrue(response_data['success'])
+        
+        # Verify the attachment was created
+        attachment_id = response_data['attachment']['id']
+        attachment = db.session.get(Attachment, attachment_id)
+        self.assertIsNotNone(attachment)
+        self.assertEqual(attachment.uploaded_by, winning_pro.id)
+        self.assertEqual(attachment.job_id, job.id)
+        
+        # Clean up
+        if attachment and attachment.file_url:
+            self.mock_cloudinary_destroy(attachment.file_url)
 
 
 if __name__ == '__main__':

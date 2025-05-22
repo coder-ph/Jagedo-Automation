@@ -3,12 +3,43 @@ Pytest configuration and fixtures for testing.
 """
 import os
 import tempfile
+from unittest.mock import MagicMock
 import pytest
 from werkzeug.security import generate_password_hash
 from app import create_app
 from app.extensions import db as _db
 from app.models import User, Job, Bid, Message, Notification, UserRole
 from flask_jwt_extended import create_access_token
+
+# Mock the SimplePlacesService before importing routes that use it
+class MockSimplePlacesService:
+    def __init__(self, *args, **kwargs):
+        pass
+        
+    def autocomplete(self, *args, **kwargs):
+        return [{"description": "Nairobi, Kenya", "place_id": "test_place_id"}]
+        
+    def get_place_details(self, *args, **kwargs):
+        return {
+            'result': {
+                'formatted_address': 'Nairobi, Kenya',
+                'geometry': {
+                    'location': {
+                        'lat': -1.286389,
+                        'lng': 36.817223
+                    }
+                }
+            }
+        }
+
+# Patch the SimplePlacesService before importing routes
+import sys
+import importlib
+sys.modules['app.services.simple_places_service'] = MagicMock()
+sys.modules['app.services.simple_places_service'].SimplePlacesService = MockSimplePlacesService
+
+# Now import the routes that use SimplePlacesService
+importlib.import_module('app.routes.simple_places')
 
 @pytest.fixture(scope='session')
 def app():

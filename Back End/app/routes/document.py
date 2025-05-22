@@ -25,12 +25,17 @@ def check_document_permission(attachment, user):
         return True
     
     # Check if user is the owner of the job
-    if attachment.job_id and attachment.job.client_id == user.id:
+    if attachment.job_id and attachment.job.customer_id == user.id:
         return True
     
     # Check if user is a professional with access to the job
     if attachment.job_id and user.role == UserRole.PROFESSIONAL:
-        # Check if user has a bid on this job
+        job = attachment.job
+        # If job is already awarded, only the winning professional has access
+        if job.status == 'awarded':
+            return job.assigned_contractor_id == user.id
+            
+        # For non-awarded jobs, any professional with a bid can access
         bid = Bid.query.filter_by(
             job_id=attachment.job_id,
             professional_id=user.id
@@ -56,9 +61,13 @@ def upload_document():
     - description: Optional description of the document
     """
     current_user_id = get_jwt_identity()
+    current_app.logger.debug(f"Upload document - Current user ID: {current_user_id}")
+    current_app.logger.debug(f"Request form data: {request.form}")
+    current_app.logger.debug(f"Request files: {request.files}")
     
     # Check if the post request has the file part
     if 'file' not in request.files:
+        current_app.logger.error("No file part in the request")
         return jsonify({
             'success': False,
             'error': 'No file part in the request.'
@@ -68,6 +77,7 @@ def upload_document():
     
     # If the user does not select a file, the browser submits an empty file without a filename
     if file.filename == '':
+        current_app.logger.error("No file selected")
         return jsonify({
             'success': False,
             'error': 'No selected file.'
@@ -80,6 +90,9 @@ def upload_document():
     user_id = request.form.get('user_id', current_user_id, type=int)
     title = request.form.get('title', '')
     description = request.form.get('description', '')
+    
+    current_app.logger.debug(f"Processing upload - Document type: {document_type}, Job ID: {job_id}, "
+                           f"Bid ID: {bid_id}, User ID: {user_id}, Current User ID: {current_user_id}")
     
     # Validate document type
     valid_document_types = ['profile', 'bid', 'job', 'other']
@@ -160,6 +173,10 @@ def upload_document():
                     tags=[f"user_{user_id}", f"type_{document_type}"]
                 )
                 
+                # Log before creating attachment
+                current_app.logger.debug(f"Creating attachment with - uploaded_by: {current_user_id}, "
+                                      f"user_id: {user_id}, job_id: {job_id}, bid_id: {bid_id}")
+                
                 # Create attachment record
                 attachment = Attachment(
                     file_url=result['public_id'],
@@ -172,6 +189,9 @@ def upload_document():
                     job_id=job_id,
                     bid_id=bid_id
                 )
+                
+                current_app.logger.debug(f"Attachment created: {attachment}")
+                current_app.logger.debug(f"Attachment uploaded_by before add: {attachment.uploaded_by}")
                 
             except Exception as upload_error:
                 current_app.logger.error(f'Cloudinary upload error: {str(upload_error)}')
