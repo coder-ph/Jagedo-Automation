@@ -6,6 +6,8 @@ import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage';
 import CustomerServiceForm from './details/CustomerServiceForm';
+// import CustomerDashboard from './components/CustomerDashboard';
+import ProtectedRoute from './logins/ProtectedRoute';
 
 function App() {
   return (
@@ -19,7 +21,12 @@ function App() {
             <Route path="/" element={<Hero />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
-            <Route path="/customer-request" element={<CustomerServiceForm />} />
+            
+            {/* Protected Routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/customer-request" element={<CustomerServiceForm />} />
+              {/* <Route path="/customer-dashboard" element={<CustomerDashboard />} /> */}
+            </Route>
 
             {/* Fallback Route */}
             <Route path="*" element={<Navigate to="/" replace />} />

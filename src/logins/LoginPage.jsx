@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+// src/logins/LoginPage.jsx
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { setAuthData, isAuthenticated } from './auth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -11,6 +13,12 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate('/customer-dashboard');
+    }
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -26,19 +34,37 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Simulate API call or real authentication
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Here, add your actual login logic (e.g., fetch API to backend)
-      console.log('Logging in with:', formData);
-
-      // On successful login, redirect to customer service request page
-      navigate('/customer-request');
+      // Replace with actual API call
+      const response = await mockLoginApi(formData.email, formData.password);
+      
+      // Store token and user data
+      setAuthData(response.token, response.user);
+      
+      // Redirect to dashboard
+      navigate('/customer-dashboard');
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Mock API function - replace with real API call
+  const mockLoginApi = async (email, password) => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (email === 'mbani@gmail.com' && password === '1234') {
+      return {
+        token: 'mock-jwt-token-1234567890',
+        user: {
+          id: '1',
+          email: email,
+          name: 'Demo User',
+          roles: ['customer']
+        }
+      };
+    }
+    throw new Error('Invalid credentials');
   };
 
   const togglePasswordVisibility = () => {
@@ -48,12 +74,10 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-center">
           <h2 className="text-3xl font-bold text-white">Sign In</h2>
         </div>
 
-        {/* Login Form */}
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {error && (
             <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
