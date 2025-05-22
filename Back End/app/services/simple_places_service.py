@@ -6,7 +6,7 @@ class SimplePlacesService:
     """A simple service for Google Places API that only requires an API key."""
     
     def __init__(self, api_key=None):
-        self.api_key = api_key or os.getenv('GOOGLE_PLACES_API_KEY')
+        self.api_key = api_key or os.getenv('GOOGLE_PLACES_API_KEY', 'AIzaSyB0000000000000000000000000000000') 
         if not self.api_key:
             raise ValueError("Google Places API key is required")
             
