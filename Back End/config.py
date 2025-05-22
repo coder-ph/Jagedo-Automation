@@ -9,9 +9,18 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-123'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    
+    # File upload configuration
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'txt'}
+    ALLOWED_EXTENSIONS = {
+        'images': {'jpg', 'jpeg', 'png', 'gif', 'webp'},
+        'documents': {'pdf', 'doc', 'docx', 'txt', 'rtf'},
+        'archives': {'zip', 'rar', '7z'},
+        'spreadsheets': {'xls', 'xlsx', 'csv'},
+        'presentations': {'ppt', 'pptx'},
+        'code': {'py', 'js', 'html', 'css', 'json', 'xml'},
+    }
     
     # Cache configuration
     CACHE_TYPE = 'SimpleCache'  
@@ -32,6 +41,15 @@ class Config:
     
     # Base URL for OAuth callbacks
     BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')
+    
+    # Cloudinary Configuration
+    CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+    CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+    CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+    CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')
+    
+    # Storage configuration
+    STORAGE_PROVIDER = os.environ.get('STORAGE_PROVIDER', 'local')  # 'local' or 'cloudinary'
     
     @staticmethod
     def init_app(app):

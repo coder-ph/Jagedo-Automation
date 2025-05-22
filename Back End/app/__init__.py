@@ -1,9 +1,10 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, current_app, render_template
 import os
 from datetime import timedelta
 
 # Import extensions
 from .extensions import db, jwt, migrate, cache, cors
+from .services.cloudinary_storage import cloudinary_storage
 
 def create_app(config_name=None):
     app = Flask(__name__)
@@ -56,6 +57,15 @@ def create_app(config_name=None):
     
     # Initialize payment service
     mpesa_service.init_app(app)
+    
+    # Initialize Cloudinary storage if configured
+    if app.config.get('STORAGE_PROVIDER') == 'cloudinary':
+        cloudinary_storage.init_app(app)
+        app.logger.info('Cloudinary storage initialized')
+    else:
+        # Ensure upload directory exists for local storage
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        app.logger.info(f'Local storage initialized at {app.config["UPLOAD_FOLDER"]}')
     
     # Register error handlers
     from .utils.error_handlers import register_error_handlers
