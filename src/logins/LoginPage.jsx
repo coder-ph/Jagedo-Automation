@@ -26,16 +26,31 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Simulate API call or real authentication
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
 
-      // Here, add your actual login logic (e.g., fetch API to backend)
-      console.log('Logging in with:', formData);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
+      
+      // Store user data if needed
+      localStorage.setItem('user', JSON.stringify(data.data.user));
 
       // On successful login, redirect to customer service request page
       navigate('/customer-request');
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
