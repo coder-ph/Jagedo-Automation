@@ -37,7 +37,325 @@ const BidManagement = () => {
         { name: "Susan Wambui", role: "Lead Architect", experience: "6 years" }
       ]
     },
-    // ... (other bid objects from previous example)
+    {
+      id: "bid_002",
+      job: {
+        id: "job_102",
+        title: "Office Renovation in Westlands",
+        description: "Complete renovation of 5,000 sq ft office space including electrical, plumbing, and interior design.",
+        customer: {
+          name: "TechHub Africa",
+          location: "Westlands, Nairobi",
+          contact: "projects@techhubafrica.com"
+        }
+      },
+      status: "pending",
+      amount: 3800000,
+      timeline_weeks: 10,
+      proposal: "We propose a modern open-plan design with energy-efficient lighting and HVAC systems. Our team will work nights and weekends to minimize business disruption. Includes 1-year warranty on all workmanship.",
+      created_at: "2023-07-15T09:15:00Z",
+      bid_attachments: [
+        { name: "Design_Concept.pdf", size: "3.7MB" },
+        { name: "Renovation_Plan.pdf", size: "1.8MB" }
+      ],
+      team: [
+        { name: "James Mwangi", role: "Interior Designer", experience: "5 years" },
+        { name: "Grace Akinyi", role: "Site Supervisor", experience: "4 years" }
+      ]
+    },
+    {
+      id: "bid_003",
+      job: {
+        id: "job_103",
+        title: "Road Construction in Thika",
+        description: "Construction of 2km access road with drainage system in Thika's industrial area.",
+        customer: {
+          name: "Thika Municipal Council",
+          location: "Thika, Kiambu County",
+          contact: "engineering@thikamunicipal.go.ke"
+        }
+      },
+      status: "rejected",
+      amount: 28750000,
+      timeline_weeks: 24,
+      proposal: "Our bid includes full road construction using durable materials suitable for heavy truck traffic. We propose a phased approach to maintain partial access during construction. Includes 5-year maintenance agreement.",
+      created_at: "2023-05-22T11:45:00Z",
+      bid_attachments: [
+        { name: "Technical_Specs.pdf", size: "4.2MB" },
+        { name: "Construction_Timeline.pdf", size: "1.5MB" },
+        { name: "Company_Certifications.pdf", size: "2.8MB" }
+      ],
+      team: [
+        { name: "David Kamau", role: "Civil Engineer", experience: "10 years" },
+        { name: "Sarah Njoroge", role: "Quantity Surveyor", experience: "7 years" }
+      ]
+    },
+    {
+      id: "bid_004",
+      job: {
+        id: "job_104",
+        title: "Solar Installation for School in Kajiado",
+        description: "Installation of 50kW solar power system with battery backup for a boarding school.",
+        customer: {
+          name: "Maasai Education Foundation",
+          location: "Kajiado County",
+          contact: "director@maasaieducation.org"
+        }
+      },
+      status: "accepted",
+      amount: 9500000,
+      timeline_weeks: 8,
+      proposal: "We propose a hybrid solar system with 120 panels and battery storage capable of 3 days autonomy. Includes staff training and 5-year comprehensive maintenance contract with remote monitoring.",
+      created_at: "2023-08-03T16:20:00Z",
+      bid_attachments: [
+        { name: "System_Design.pdf", size: "3.1MB" },
+        { name: "Equipment_Specs.pdf", size: "2.6MB" },
+        { name: "Maintenance_Agreement.pdf", size: "1.2MB" }
+      ],
+      team: [
+        { name: "Peter Ndirangu", role: "Solar Engineer", experience: "6 years" },
+        { name: "Lucy Wanjiru", role: "Electrical Engineer", experience: "5 years" }
+      ]
+    },
+    {
+      id: "bid_005",
+      job: {
+        id: "job_105",
+        title: "Hospital HVAC System Upgrade",
+        description: "Upgrade of HVAC systems for a 300-bed hospital in Mombasa.",
+        customer: {
+          name: "Coast General Hospital",
+          location: "Mombasa",
+          contact: "facilities@coasthospital.go.ke"
+        }
+      },
+      status: "pending",
+      amount: 18700000,
+      timeline_weeks: 16,
+      proposal: "Our proposal includes energy-efficient HVAC systems with HEPA filtration for critical areas. We'll implement in phases to maintain hospital operations. Includes 24/7 emergency support contract.",
+      created_at: "2023-09-12T10:30:00Z",
+      bid_attachments: [
+        { name: "HVAC_Design.pdf", size: "5.4MB" },
+        { name: "Phased_Implementation.pdf", size: "2.3MB" }
+      ],
+      team: [
+        { name: "Robert Ochieng", role: "HVAC Specialist", experience: "12 years" },
+        { name: "Mary Atieno", role: "Project Coordinator", experience: "8 years" }
+      ]
+    },
+    {
+      id: "bid_006",
+      job: {
+        id: "job_106",
+        title: "Warehouse Construction in Athi River",
+        description: "Construction of 10,000 sq ft warehouse with office space and loading docks.",
+        customer: {
+          name: "Logistics Solutions Kenya",
+          location: "Athi River EPZ",
+          contact: "tenders@logisticske.com"
+        }
+      },
+      status: "accepted",
+      amount: 42500000,
+      timeline_weeks: 20,
+      proposal: "We propose a steel-framed warehouse with concrete floor suitable for heavy equipment. Includes fire suppression system and security features. Project can be completed in 5 months with our accelerated schedule.",
+      created_at: "2023-07-28T13:45:00Z",
+      bid_attachments: [
+        { name: "Structural_Design.pdf", size: "6.8MB" },
+        { name: "Construction_Methodology.pdf", size: "3.2MB" },
+        { name: "Safety_Plan.pdf", size: "1.9MB" }
+      ],
+      team: [
+        { name: "Samuel Kariuki", role: "Construction Manager", experience: "15 years" },
+        { name: "Elizabeth Muthoni", role: "Structural Engineer", experience: "9 years" }
+      ]
+    },
+    {
+      id: "bid_007",
+      job: {
+        id: "job_107",
+        title: "Hotel Interior Design in Diani",
+        description: "Complete interior design and furnishing for a 50-room boutique hotel.",
+        customer: {
+          name: "Diani Beach Resorts",
+          location: "Diani Beach, Kwale",
+          contact: "development@dianiresorts.com"
+        }
+      },
+      status: "rejected",
+      amount: 28500000,
+      timeline_weeks: 18,
+      proposal: "Our design concept blends contemporary Swahili coastal aesthetics with modern luxury. Includes custom furniture, lighting, and artwork from local artisans. Project timeline accounts for overseas shipping of specialty items.",
+      created_at: "2023-06-30T15:10:00Z",
+      bid_attachments: [
+        { name: "Design_Concept.pdf", size: "8.5MB" },
+        { name: "Material_Samples.pdf", size: "4.7MB" },
+        { name: "Furniture_Specs.pdf", size: "3.2MB" }
+      ],
+      team: [
+        { name: "Fatma Ali", role: "Lead Designer", experience: "7 years" },
+        { name: "Joseph Musyoki", role: "Procurement Specialist", experience: "6 years" }
+      ]
+    },
+    {
+      id: "bid_008",
+      job: {
+        id: "job_108",
+        title: "School Playground Equipment Installation",
+        description: "Supply and installation of playground equipment for primary school in Nakuru.",
+        customer: {
+          name: "Nakuru Primary School",
+          location: "Nakuru Town",
+          contact: "office@nakuruprimary.sc.ke"
+        }
+      },
+      status: "pending",
+      amount: 3200000,
+      timeline_weeks: 6,
+      proposal: "We propose a complete playground with safety-certified equipment including swings, slides, and climbing structures. Installation includes impact-absorbing rubber surfacing for safety. All materials are weather-resistant and low-maintenance.",
+      created_at: "2023-10-05T11:20:00Z",
+      bid_attachments: [
+        { name: "Equipment_Catalog.pdf", size: "2.9MB" },
+        { name: "Installation_Plan.pdf", size: "1.4MB" }
+      ],
+      team: [
+        { name: "Brian Omollo", role: "Installation Supervisor", experience: "5 years" },
+        { name: "Winnie Adhiambo", role: "Safety Inspector", experience: "4 years" }
+      ]
+    },
+    {
+      id: "bid_009",
+      job: {
+        id: "job_109",
+        title: "Fencing and Security Installation for Farm",
+        description: "Perimeter fencing and security system for 50-acre farm in Laikipia.",
+        customer: {
+          name: "Laikipia Highlands Farm",
+          location: "Laikipia County",
+          contact: "security@laikipiafarm.co.ke"
+        }
+      },
+      status: "accepted",
+      amount: 18750000,
+      timeline_weeks: 12,
+      proposal: "Our solution includes 8ft game-proof fencing with electric deterrent, CCTV surveillance system with solar power, and access control gates. All equipment is wildlife-resistant and designed for harsh conditions.",
+      created_at: "2023-08-18T14:50:00Z",
+      bid_attachments: [
+        { name: "Security_Design.pdf", size: "5.6MB" },
+        { name: "Equipment_Specs.pdf", size: "3.1MB" },
+        { name: "Maintenance_Manual.pdf", size: "2.4MB" }
+      ],
+      team: [
+        { name: "Daniel Kiprop", role: "Security Specialist", experience: "8 years" },
+        { name: "Naomi Chebet", role: "Field Engineer", experience: "5 years" }
+      ]
+    },
+    {
+      id: "bid_010",
+      job: {
+        id: "job_110",
+        title: "Swimming Pool Construction in Karen",
+        description: "Construction of Olympic-sized swimming pool with filtration system.",
+        customer: {
+          name: "Karen Sports Club",
+          location: "Karen, Nairobi",
+          contact: "facilities@karensportsclub.com"
+        }
+      },
+      status: "rejected",
+      amount: 22500000,
+      timeline_weeks: 14,
+      proposal: "We propose a competition-standard 50m pool with 8 lanes, using the latest filtration technology. Includes starting blocks, lane markers, and ADA-compliant access. Construction uses high-quality materials for minimal maintenance.",
+      created_at: "2023-07-05T10:15:00Z",
+      bid_attachments: [
+        { name: "Pool_Design.pdf", size: "4.8MB" },
+        { name: "Technical_Specs.pdf", size: "3.5MB" }
+      ],
+      team: [
+        { name: "Paul Gitonga", role: "Pool Specialist", experience: "9 years" },
+        { name: "Rebecca Njeri", role: "Project Engineer", experience: "6 years" }
+      ]
+    },
+    {
+      id: "bid_011",
+      job: {
+        id: "job_111",
+        title: "Office IT Infrastructure Setup",
+        description: "Complete IT infrastructure setup for new office with 50 workstations.",
+        customer: {
+          name: "Fintech Innovations Ltd",
+          location: "Upper Hill, Nairobi",
+          contact: "it@fintechinnovations.africa"
+        }
+      },
+      status: "accepted",
+      amount: 12500000,
+      timeline_weeks: 6,
+      proposal: "Our solution includes high-speed networking, VoIP phone system, server setup, and workstation configuration. We provide 24/7 support with 2-hour response time. All equipment is enterprise-grade with 3-year warranty.",
+      created_at: "2023-09-20T08:45:00Z",
+      bid_attachments: [
+        { name: "Network_Design.pdf", size: "3.7MB" },
+        { name: "Equipment_List.pdf", size: "1.8MB" },
+        { name: "Support_Agreement.pdf", size: "1.2MB" }
+      ],
+      team: [
+        { name: "Kevin Maina", role: "IT Architect", experience: "7 years" },
+        { name: "Sharon Wangeci", role: "Systems Engineer", experience: "5 years" }
+      ]
+    },
+    {
+      id: "bid_012",
+      job: {
+        id: "job_112",
+        title: "Landscaping for Corporate Headquarters",
+        description: "Complete landscaping and outdoor space design for new corporate campus.",
+        customer: {
+          name: "Pan African Holdings",
+          location: "Westlands, Nairobi",
+          contact: "facilities@paholdings.com"
+        }
+      },
+      status: "pending",
+      amount: 18500000,
+      timeline_weeks: 10,
+      proposal: "Our design incorporates native drought-resistant plants, water features, and outdoor meeting spaces. Includes irrigation system with rainwater harvesting. Maintenance program available for first year at discounted rate.",
+      created_at: "2023-10-15T12:30:00Z",
+      bid_attachments: [
+        { name: "Landscape_Design.pdf", size: "7.2MB" },
+        { name: "Plant_List.pdf", size: "2.1MB" }
+      ],
+      team: [
+        { name: "Grace Mwende", role: "Landscape Architect", experience: "8 years" },
+        { name: "Eric Onyango", role: "Horticulturist", experience: "6 years" }
+      ]
+    },
+    {
+      id: "bid_013",
+      job: {
+        id: "job_113",
+        title: "Water Borehole Drilling in Isiolo",
+        description: "Drilling and equipping of 200m deep water borehole for community use.",
+        customer: {
+          name: "Isiolo County Government",
+          location: "Isiolo County",
+          contact: "water@isiolocounty.go.ke"
+        }
+      },
+      status: "accepted",
+      amount: 8500000,
+      timeline_weeks: 8,
+      proposal: "We'll drill to estimated aquifer depth with casing and screen installation. Includes solar-powered submersible pump, storage tank, and community tap stands. Our team has extensive experience in arid regions with 98% success rate.",
+      created_at: "2023-08-30T09:50:00Z",
+      bid_attachments: [
+        { name: "Geological_Report.pdf", size: "4.5MB" },
+        { name: "Equipment_Specs.pdf", size: "2.8MB" },
+        { name: "Community_Training.pdf", size: "1.5MB" }
+      ],
+      team: [
+        { name: "Ahmed Abdi", role: "Hydrogeologist", experience: "10 years" },
+        { name: "Lilian Wanjiku", role: "Project Manager", experience: "7 years" }
+      ]
+    }
   ];
 
   const [activeTab, setActiveTab] = useState('all');
