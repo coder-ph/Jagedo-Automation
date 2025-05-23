@@ -24,7 +24,8 @@ POST /api/auth/register
   "email": "john@example.com",
   "password": "securepassword123",
   "role": "customer",
-  "location": "Nairobi, Kenya"
+  "location": "Nairobi, Kenya",
+  "phone": "+254700000000"
 }
 ```
 

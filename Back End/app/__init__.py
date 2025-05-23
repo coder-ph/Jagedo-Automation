@@ -44,9 +44,9 @@ def create_app(config_name=None):
     app.register_blueprint(document_bp, url_prefix='/api/documents')
     app.register_blueprint(notification_bp, url_prefix='/api/notifications')
     app.register_blueprint(payment_bp, url_prefix='/api/payments')
-    app.register_blueprint(admin_bp)  # Admin routes with /api/admin prefix
-    app.register_blueprint(places_bp)  # No prefix, routes are already prefixed
-    app.register_blueprint(simple_places_bp)  # Simple places API with no authentication
+    app.register_blueprint(admin_bp)  
+    app.register_blueprint(places_bp) 
+    app.register_blueprint(simple_places_bp)  
     
     # Initialize CLI commands
     init_commands(app)
