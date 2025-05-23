@@ -1,15 +1,14 @@
 // src/logins/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUser, FaLock, FaEye, FaEyeSlash, FaUserTie, FaUserCircle } from 'react-icons/fa';
-import { setAuthData, isAuthenticated } from './auth';
+import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { setAuthData, isAuthenticated, getUser } from './Auth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    userType: 'customer' // Default to customer
+    password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,10 +23,15 @@ const LoginPage = () => {
   }, [navigate]);
 
   const redirectBasedOnRole = (roles) => {
+    console.log('redirectBasedOnRole called with roles:', roles);
     if (roles.includes('professional')) {
-      navigate('/professional-dashboard');
-    } else {
+      console.log('Redirecting to professional form');
+      navigate('/professional-form');
+    } else if (roles.includes('customer')) {
+      console.log('Redirecting to customer service form');
       navigate('/customer-dashboard');
+    } else {
+      console.log('No matching role found, staying on current page');
     }
   };
 
@@ -45,70 +49,66 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/auth/login', {
+      console.log('Attempting login...');
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
       });
 
       const data = await response.json();
+      console.log('Login response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store tokens in localStorage
-      localStorage.setItem('access_token', data.data.access_token);
-      localStorage.setItem('refresh_token', data.data.refresh_token);
-      
-      // Store user data if needed
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      // Store auth data using the Auth.jsx function
+      setAuthData(data.data.access_token, data.data.user);
+      console.log('Auth data stored successfully');
 
-      // On successful login, redirect to customer service request page
-      navigate('/customer-request');
-      // redirectBasedOnRole(response.user.roles);
+      // Get user data using the Auth.jsx function
+      const userData = getUser();
+      console.log('Retrieved user data:', userData);
+
+      // Navigate based on user role
+      if (userData?.roles?.length > 0) {
+        console.log('Using roles array for navigation');
+        redirectBasedOnRole(userData.roles);
+      } else if (userData?.role) {
+        console.log('Using single role for navigation');
+        switch (userData.role.toUpperCase()) {
+          case 'PROFESSIONAL':
+            console.log('Redirecting to professional form');
+            navigate('/professional-form');
+            break;
+          case 'CUSTOMER':
+            console.log('Redirecting to customer service form');
+            navigate('/customer-request');
+            break;
+          case 'ADMIN':
+            console.log('Admin user - staying on current page');
+            break;
+          default:
+            console.log('No matching role - redirecting to home');
+            navigate('/');
+        }
+      } else {
+        console.log('No role information found');
+        navigate('/');
+      }
+
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Enhanced mock API function with professional login
-  const mockLoginApi = async (email, password, userType) => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Customer login
-    if (email === 'customer@example.com' && password === '1234' && userType === 'customer') {
-      return {
-        token: 'mock-jwt-token-customer-123',
-        user: {
-          id: '1',
-          email: email,
-          name: 'Demo Customer',
-          roles: ['customer']
-        }
-      };
-    }
-    
-    // Professional login
-    if (email === 'professional@example.com' && password === '1234' && userType === 'professional') {
-      return {
-        token: 'mock-jwt-token-professional-456',
-        user: {
-          id: '2',
-          email: email,
-          name: 'Demo Professional',
-          roles: ['professional'],
-          specialization: 'Contractor',
-          rating: 4.8
-        }
-      };
-    }
-    
-    throw new Error('Invalid credentials or user type');
   };
 
   const togglePasswordVisibility = () => {
@@ -128,36 +128,6 @@ const LoginPage = () => {
               <p>{error}</p>
             </div>
           )}
-
-          {/* User Type Selection */}
-          <div className="flex justify-center space-x-4">
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                name="userType"
-                value="customer"
-                checked={formData.userType === 'customer'}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
-              />
-              <span className="ml-2 flex items-center">
-                <FaUserCircle className="mr-1" /> Customer
-              </span>
-            </label>
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                name="userType"
-                value="professional"
-                checked={formData.userType === 'professional'}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
-              />
-              <span className="ml-2 flex items-center">
-                <FaUserTie className="mr-1" /> Professional
-              </span>
-            </label>
-          </div>
 
           <div className="space-y-4">
             <div className="relative">
@@ -242,11 +212,6 @@ const LoginPage = () => {
               Sign up
             </a>
           </p>
-          {formData.userType === 'professional' && (
-            <p className="text-xs text-gray-500 mt-2">
-              Professionals must complete a verification process after registration
-            </p>
-          )}
         </div>
       </div>
     </div>
