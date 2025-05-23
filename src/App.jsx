@@ -14,24 +14,8 @@ import Search from './components/Search';
 import History from './components/History';
 import Notifications from './components/Notifications';
 import RequestDetail from './components/RequestDetail';
-import ProfessionalForm from './proffesional/ProfessionalDashboard';
-import StatCard from './proffesional/StatCard';
-import ReviewsSection from './proffesional/ReviewsSection';
-import RecentJobs from './proffesional/RecentJobs';
-import ProfileDetails from './proffesional/ProfileDetails';
-import MyBids from './proffesional/MyBids';
-import BidList from './proffesional/BidList';
-import ProfileHeader from './proffesional/ProfileHeader';
-import BidStatusTabs from './proffesional/BidStatusTabs';
-import BidStatusChart from './proffesional/BidStatusChart';
-import JobCard from './proffesional/JobCard';
-import DashboardOverview from './proffesional/DashboardOverview';
-import PortfolioSection from './proffesional/PortfolioSection';
-import JobFilter from './proffesional/JobFilter';
-import ProfessionalDashboard from './proffesional/ProfessionalDashboard';
-import ProfessionalSidebar from './proffesional/ProfessionalSidebar';
+import BidManagement from './proffesional/BidManagement';
 import ProfessionalProfile from './proffesional/ProfessionalProfile';
-import ProfessionalHeader from './proffesional/ProfessionalHeader';
 
 
 function App() {
@@ -59,23 +43,8 @@ function App() {
               <Route path="/request/:id" element={<RequestDetail />} />
               
               {/* Professional Routes */}
-              <Route path="/professional-form" element={<ProfessionalForm />} />
+              <Route path="/bid-management" element={<BidManagement />} />
               <Route path="/professional-profile" element={<ProfessionalProfile />} />
-              <Route path="/stat-card" element={<StatCard />} />
-              <Route path="/review-section" element={<ReviewsSection />} />
-              <Route path="/recent-jobs" element={<RecentJobs />} />
-              <Route path="/profile-details" element={<ProfileDetails />} />
-              <Route path="/my-bids" element={<MyBids />} />
-              <Route path="/bid-list" element={<BidList />} />
-              <Route path="/profile-header" element={<ProfileHeader />} />
-              <Route path="/bid-status-tabs" element={<BidStatusTabs />} />
-              <Route path="/bid-status-chart" element={<BidStatusChart />} />
-              <Route path="/job-card" element={<JobCard />} />
-              <Route path="/dashboard-overview" element={<DashboardOverview />} />
-              <Route path="/portfolio-section" element={<PortfolioSection />} />
-              <Route path="/job-filter" element={<JobFilter />} />
-              <Route path="/professional-sidebar" element={<ProfessionalSidebar />} />
-              <Route path="/professional-header" element={<ProfessionalHeader />} />
               
 
             {/* </Route> */}
