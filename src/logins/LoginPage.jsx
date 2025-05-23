@@ -16,22 +16,23 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      // Redirect based on user role stored in auth
-      const user = JSON.parse(localStorage.getItem('user'));
-      redirectBasedOnRole(user.roles);
+      const user = getUser();
+      handleNavigation(user);
     }
   }, [navigate]);
 
-  const redirectBasedOnRole = (roles) => {
-    console.log('redirectBasedOnRole called with roles:', roles);
-    if (roles.includes('professional')) {
-      console.log('Redirecting to professional form');
+  const handleNavigation = (userData) => {
+    const roles = userData?.roles || [userData?.role?.toUpperCase()];
+    
+    if (roles.includes('PROFESSIONAL')) {
       navigate('/professional-form');
-    } else if (roles.includes('customer')) {
-      console.log('Redirecting to customer service form');
+    } else if (roles.includes('CUSTOMER')) {
       navigate('/customer-dashboard');
+    } else if (roles.includes('ADMIN')) {
+      // Admin stays on current page
+      return;
     } else {
-      console.log('No matching role found, staying on current page');
+      navigate('/');
     }
   };
 
@@ -49,7 +50,6 @@ const LoginPage = () => {
     setError('');
 
     try {
-      console.log('Attempting login...');
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -62,49 +62,16 @@ const LoginPage = () => {
       });
 
       const data = await response.json();
-      console.log('Login response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store auth data using the Auth.jsx function
       setAuthData(data.data.access_token, data.data.user);
-      console.log('Auth data stored successfully');
-
-      // Get user data using the Auth.jsx function
       const userData = getUser();
-      console.log('Retrieved user data:', userData);
-
-      // Navigate based on user role
-      if (userData?.roles?.length > 0) {
-        console.log('Using roles array for navigation');
-        redirectBasedOnRole(userData.roles);
-      } else if (userData?.role) {
-        console.log('Using single role for navigation');
-        switch (userData.role.toUpperCase()) {
-          case 'PROFESSIONAL':
-            console.log('Redirecting to professional form');
-            navigate('/professional-form');
-            break;
-          case 'CUSTOMER':
-            console.log('Redirecting to customer service form');
-            navigate('/customer-request');
-            break;
-          case 'ADMIN':
-            console.log('Admin user - staying on current page');
-            break;
-          default:
-            console.log('No matching role - redirecting to home');
-            navigate('/');
-        }
-      } else {
-        console.log('No role information found');
-        navigate('/');
-      }
+      handleNavigation(userData);
 
     } catch (err) {
-      console.error('Login error:', err);
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
