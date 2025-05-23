@@ -1,12 +1,13 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage';
-import CustomerServiceForm from './Details/CustomerServiceForm';
+import CustomerServiceRequest from './Details/CustomerServiceForm';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './logins/ProtectedRoute';
 import RequestHistory from './components/RequestHistory';
@@ -23,38 +24,40 @@ function Documents() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        
-        <main className="flex-grow">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Hero />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            
-            {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/customer-request" element={<CustomerServiceForm />} />
-              <Route path="/customer-dashboard" element={<Dashboard />} />
-              <Route path="/request-history" element={<RequestHistory />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/request/:id" element={<RequestDetail />} />
-              <Route path="/professional-form" element={<ProfessionalForm />} />
-            </Route>
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="min-h-screen flex flex-col">
+          <Navbar />
+          
+          <main className="flex-grow">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Hero />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/customer-request" element={<CustomerServiceRequest />} />
+                <Route path="/customer-dashboard" element={<Dashboard />} />
+                <Route path="/request-history" element={<RequestHistory />} />
+                <Route path="/documents" element={<Documents />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/request/:id" element={<RequestDetail />} />
+                <Route path="/professional-form" element={<ProfessionalForm />} />
+              </Route>
 
-            {/* Fallback Route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-
-        <Footer />
-      </div>
-    </BrowserRouter>
+              {/* Fallback Route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+          
+          <Footer />
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

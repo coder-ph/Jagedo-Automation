@@ -1,17 +1,16 @@
 // src/components/Navbar.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { isAuthenticated, getUser, clearAuthData } from '../logins/auth';
+import { useAuth } from '../context/AuthContext';
 import { FaUser, FaSignOutAlt, FaBars, FaTimes } from 'react-icons/fa';
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isAuth = isAuthenticated();
-  const user = getUser();
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    clearAuthData();
+    logout();
     navigate('/login');
   };
 
@@ -38,7 +37,7 @@ const Navbar = () => {
 
           {/* Desktop Auth Section */}
           <div className="hidden md:ml-6 md:flex md:items-center">
-            {isAuth ? (
+            {isAuthenticated() ? (
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleLogout}
@@ -88,7 +87,7 @@ const Navbar = () => {
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200">
           <div className="pt-4 pb-3 border-t border-gray-200">
-            {isAuth ? (
+            {isAuthenticated() ? (
               <div className="mt-3 px-2">
                 <button
                   onClick={() => {

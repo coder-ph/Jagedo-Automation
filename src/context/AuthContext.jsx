@@ -118,6 +118,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     // Clear user from state
     setUser(null);
+    
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   const isAuthenticated = () => {

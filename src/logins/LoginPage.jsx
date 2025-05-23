@@ -1,12 +1,14 @@
 // src/logins/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
-import { setAuthData, isAuthenticated, getUser } from './Auth';
+import { useAuth } from '../context/AuthContext';
 
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -17,10 +19,9 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      const user = getUser();
       handleNavigation(user);
     }
-  }, [navigate]);
+  }, [navigate, isAuthenticated, user]);
 
   const handleNavigation = (userData) => {
     const roles = userData?.roles || [userData?.role?.toUpperCase()];
@@ -52,31 +53,19 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        }),
-
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+      const result = await login(formData);
+      
+      if (result.success) {
+        // Redirect to the intended page or default to dashboard
+        const from = location.state?.from || '/customer-dashboard';
+        navigate(from, { replace: true });
+      } else {
+        throw new Error(result.message || 'Login failed');
       }
 
-      setAuthData(data.data.access_token, data.data.user);
-      const userData = getUser();
-      handleNavigation(userData);
-
-    } catch (err) {
-      setError(err.message || 'Invalid credentials. Please try again.');
+    } catch (error) {
+      console.error('Login error:', error);
+      setError(error.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
