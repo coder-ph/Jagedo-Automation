@@ -9,14 +9,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '')
-      },
-      '/auth': {
-        target: 'http://localhost:5000/api',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/auth/, '/auth')
+        secure: false
       }
     },
     port: 3000,
