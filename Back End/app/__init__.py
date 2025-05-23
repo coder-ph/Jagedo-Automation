@@ -6,6 +6,9 @@ from datetime import timedelta
 from .extensions import db, jwt, migrate, cache, cors
 from .services.cloudinary_storage import cloudinary_storage
 
+# Import CLI commands
+from commands import init_app as init_commands
+
 def create_app(config_name=None):
     app = Flask(__name__)
     
@@ -31,6 +34,7 @@ def create_app(config_name=None):
     from .routes import auth_bp, project_bp, bid_bp, document_bp, notification_bp, payment_bp
     from .routes.places import places_bp
     from .routes.simple_places import simple_places_bp
+    from .routes.admin import bp as admin_bp
     from .services.payment_service import mpesa_service
     
     # Register blueprints
@@ -40,8 +44,12 @@ def create_app(config_name=None):
     app.register_blueprint(document_bp, url_prefix='/api/documents')
     app.register_blueprint(notification_bp, url_prefix='/api/notifications')
     app.register_blueprint(payment_bp, url_prefix='/api/payments')
+    app.register_blueprint(admin_bp)  # Admin routes with /api/admin prefix
     app.register_blueprint(places_bp)  # No prefix, routes are already prefixed
     app.register_blueprint(simple_places_bp)  # Simple places API with no authentication
+    
+    # Initialize CLI commands
+    init_commands(app)
     
     # Route to serve the example HTML file
     @app.route('/examples/places')

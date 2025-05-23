@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { setAuthData, isAuthenticated, getUser } from './Auth';
 
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -36,6 +37,7 @@ const LoginPage = () => {
     }
   };
 
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -51,6 +53,7 @@ const LoginPage = () => {
 
     try {
       const response = await fetch('/api/auth/login', {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,6 +62,7 @@ const LoginPage = () => {
           email: formData.email,
           password: formData.password
         }),
+
       });
 
       const data = await response.json();
