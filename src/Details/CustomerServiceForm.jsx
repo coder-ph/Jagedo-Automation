@@ -8,7 +8,7 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
-const CustomerServiceForm = () => {
+const CustomerServiceRequest = () => {
   const { user, token } = useAuth();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
