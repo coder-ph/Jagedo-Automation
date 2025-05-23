@@ -1,7 +1,17 @@
-// JobFilter.jsx
 import React from 'react';
 
-const JobFilter = ({ filters, onChange }) => {
+const JobFilter = ({ filters = {}, onChange }) => {
+  // Default filter values
+  const defaultFilters = {
+    category: '',
+    location: '',
+    budget: '',
+    sort: 'newest'
+  };
+
+  // Merge provided filters with defaults
+  const currentFilters = { ...defaultFilters, ...filters };
+
   const categories = [
     { value: '', label: 'All Categories' },
     { value: 'contractor', label: 'Contractor' },
@@ -34,8 +44,16 @@ const JobFilter = ({ filters, onChange }) => {
     { value: 'budget-low', label: 'Lowest Budget' },
   ];
 
+  const handleChange = (name, value) => {
+    onChange({ ...currentFilters, [name]: value });
+  };
+
+  const handleReset = () => {
+    onChange(defaultFilters);
+  };
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
+    <div className="bg-white p-4 rounded-lg shadow mb-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div>
           <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
@@ -44,8 +62,8 @@ const JobFilter = ({ filters, onChange }) => {
           <select
             id="category"
             name="category"
-            value={filters.category}
-            onChange={(e) => onChange('category', e.target.value)}
+            value={currentFilters.category}
+            onChange={(e) => handleChange('category', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
             {categories.map(option => (
@@ -61,8 +79,8 @@ const JobFilter = ({ filters, onChange }) => {
           <select
             id="location"
             name="location"
-            value={filters.location}
-            onChange={(e) => onChange('location', e.target.value)}
+            value={currentFilters.location}
+            onChange={(e) => handleChange('location', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
             {locations.map(option => (
@@ -78,8 +96,8 @@ const JobFilter = ({ filters, onChange }) => {
           <select
             id="budget"
             name="budget"
-            value={filters.budget}
-            onChange={(e) => onChange('budget', e.target.value)}
+            value={currentFilters.budget}
+            onChange={(e) => handleChange('budget', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
             {budgets.map(option => (
@@ -95,8 +113,8 @@ const JobFilter = ({ filters, onChange }) => {
           <select
             id="sort"
             name="sort"
-            value={filters.sort}
-            onChange={(e) => onChange('sort', e.target.value)}
+            value={currentFilters.sort}
+            onChange={(e) => handleChange('sort', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
             {sortOptions.map(option => (
@@ -108,8 +126,8 @@ const JobFilter = ({ filters, onChange }) => {
         <div className="flex items-end">
           <button
             type="button"
-            onClick={() => onChange({ category: '', location: '', budget: '', sort: 'newest' })}
-            className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            onClick={handleReset}
+            className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
           >
             Reset Filters
           </button>
