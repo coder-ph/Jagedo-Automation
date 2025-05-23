@@ -1,4 +1,4 @@
-// src/App.jsx
+  // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import Navbar from './components/Navbar';
@@ -32,6 +32,8 @@ import ProfessionalDashboard from './proffesional/ProfessionalDashboard';
 import ProfessionalSidebar from './proffesional/ProfessionalSidebar';
 import ProfessionalProfile from './proffesional/ProfessionalProfile';
 import ProfessionalHeader from './proffesional/ProfessionalHeader';
+import AdminLayout from './admin/AdminLayout';
+
 
 
 function App() {
@@ -76,6 +78,11 @@ function App() {
               <Route path="/job-filter" element={<JobFilter />} />
               <Route path="/professional-sidebar" element={<ProfessionalSidebar />} />
               <Route path="/professional-header" element={<ProfessionalHeader />} />
+              
+
+              {/* admin Routes */}
+              
+              <Route path="/admin-layout" element={<AdminLayout />} />
               
 
             {/* </Route> */}

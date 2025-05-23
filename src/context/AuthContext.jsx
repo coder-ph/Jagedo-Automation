@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import api from '../services/api';
+import { api } from '../services/api'; // Changed to named import
 
 const AuthContext = createContext(null);
 
@@ -8,10 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on initial load
     const token = localStorage.getItem('token');
     if (token) {
-      // If token exists, fetch user data
       fetchUserData();
     } else {
       setLoading(false);
@@ -35,10 +33,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/login', credentials);
       const { token, user } = response.data;
       
-      // Store token in localStorage
       localStorage.setItem('token', token);
-      
-      // Set user in state
       setUser(user);
       
       return { success: true };
@@ -56,10 +51,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/register', userData);
       const { token, user } = response.data;
       
-      // Store token in localStorage
       localStorage.setItem('token', token);
-      
-      // Set user in state
       setUser(user);
       
       return { success: true };
@@ -73,33 +65,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    // Clear token from localStorage
     localStorage.removeItem('token');
-    // Clear user from state
     setUser(null);
   };
 
-  const isAuthenticated = () => {
-    return !!user;
-  };
-
-  const isAdmin = () => {
-    return user?.role === 'admin';
+  const value = {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        loading, 
-        login, 
-        register, 
-        logout, 
-        isAuthenticated, 
-        isAdmin 
-      }}
-    >
-      {!loading && children}
+    <AuthContext.Provider value={value}>
+      {children}
     </AuthContext.Provider>
   );
 };
@@ -111,5 +93,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-export default AuthContext;
