@@ -10,6 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.3",
+    "@heroicons/react": "^2.2.0",
+    "framer-motion": "^12.12.1",
+    "lucide-react": "^0.511.0",
+    "react": "^19.1.0",
     "@ant-design/icons": "^6.0.0",
     "@headlessui/react": "^2.2.3",
     "@heroicons/react": "^2.2.0",

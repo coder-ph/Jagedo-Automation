@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+// src/logins/LoginPage.jsx
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { setAuthData, isAuthenticated, getUser } from './Auth';
+
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -11,6 +14,29 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      const user = getUser();
+      handleNavigation(user);
+    }
+  }, [navigate]);
+
+  const handleNavigation = (userData) => {
+    const roles = userData?.roles || [userData?.role?.toUpperCase()];
+    
+    if (roles.includes('PROFESSIONAL')) {
+      navigate('/professional-form');
+    } else if (roles.includes('CUSTOMER')) {
+      navigate('/customer-dashboard');
+    } else if (roles.includes('ADMIN')) {
+      // Admin stays on current page
+      return;
+    } else {
+      navigate('/');
+    }
+  };
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -26,12 +52,17 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/auth/login', {
+      const response = await fetch('/api/auth/login', {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
+
       });
 
       const data = await response.json();
@@ -40,15 +71,10 @@ const LoginPage = () => {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store tokens in localStorage
-      localStorage.setItem('access_token', data.data.access_token);
-      localStorage.setItem('refresh_token', data.data.refresh_token);
-      
-      // Store user data if needed
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      setAuthData(data.data.access_token, data.data.user);
+      const userData = getUser();
+      handleNavigation(userData);
 
-      // On successful login, redirect to customer service request page
-      navigate('/customer-request');
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
@@ -63,12 +89,10 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-center">
           <h2 className="text-3xl font-bold text-white">Sign In</h2>
         </div>
 
-        {/* Login Form */}
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {error && (
             <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
