@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 admin-dashboard-changes.patch
+
+# Mock data
+src/mock/

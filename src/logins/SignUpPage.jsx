@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUser, FaEnvelope, FaLock, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaLock, FaMapMarkerAlt, FaPhone } from 'react-icons/fa';
 
 const SignUpPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     password: '',
     confirmPassword: '',
     userType: '',
@@ -35,6 +36,16 @@ const SignUpPage = () => {
       return setError('Please enter your location.');
     }
 
+    if (!formData.phone) {
+      return setError('Please enter your phone number.');
+    }
+
+    // Simple phone number validation (basic format)
+    const phoneRegex = /^[0-9\+\-\s\(\)]{10,20}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      return setError('Please enter a valid phone number.');
+    }
+
     if (formData.password !== formData.confirmPassword) {
       return setError('Passwords do not match.');
     }
@@ -50,6 +61,7 @@ const SignUpPage = () => {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
+          phone: formData.phone,
           password: formData.password,
           role: formData.userType,
           location: formData.location
@@ -95,6 +107,19 @@ const SignUpPage = () => {
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="Full Name"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <FaPhone className="absolute top-3 left-3 text-gray-400" />
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                placeholder="Phone Number (e.g., +254 700 000000)"
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 required
               />
