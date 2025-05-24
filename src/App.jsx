@@ -7,7 +7,7 @@ import Hero from './components/Hero';
 import Footer from './components/Footer';
 import LoginPage from './logins/LoginPage';
 import SignUpPage from './logins/SignUpPage';
-import CustomerServiceRequest from './Details/CustomerServiceForm';
+import CustomerServiceForm from './Details/CustomerServiceForm';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './logins/ProtectedRoute';
 import RequestHistory from './components/RequestHistory';
@@ -21,6 +21,8 @@ import ProfessionalProfile from './proffesional/ProfessionalProfile';
 
 function App() {
   return (
+    <AuthProvider>
+
     <BrowserRouter>
       <div className="min-h-screen flex flex-col">
         <Navbar />
