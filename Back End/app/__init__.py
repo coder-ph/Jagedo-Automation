@@ -3,7 +3,7 @@ import os
 from datetime import timedelta
 
 # Import extensions
-from .extensions import db, jwt, migrate, cache, cors
+from .extensions import db, jwt, migrate, cache, cors, init_redis
 from .services.cloudinary_storage import cloudinary_storage
 
 # Import CLI commands
@@ -29,6 +29,9 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     cache.init_app(app)
     cors.init_app(app)
+    
+    # Initialize Redis
+    init_redis(app)
     
     # Import and register blueprints
     from .routes import auth_bp, project_bp, bid_bp, document_bp, notification_bp, payment_bp

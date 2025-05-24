@@ -26,6 +26,14 @@ class Config:
     CACHE_TYPE = 'SimpleCache'  
     CACHE_DEFAULT_TIMEOUT = 300
     
+    # Redis configuration
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    JWT_BLOCKLIST_ENABLED = True  # Enable Redis-based JWT blacklist when Redis is available
+    
+    # Celery configuration
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+    
     # Google OAuth and Places API configuration
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
