@@ -15,39 +15,42 @@ import Search from './components/Search';
 import History from './components/History';
 import Notifications from './components/Notifications';
 import RequestDetail from './components/RequestDetail';
-import ProfessionalForm from './Details/ProfessionalForm';
+import BidManagement from './proffesional/BidManagement';
+import ProfessionalProfile from './proffesional/ProfessionalProfile';
 
-// Simple placeholder components for any missing ones
-function Documents() {
-  return <div className="p-4">Documents Management</div>;
-}
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          
-          <main className="flex-grow">
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<Hero />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignUpPage />} />
+    <BrowserRouter>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        
+        <main className="flex-grow">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Hero />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            
+            {/* Protected Routes */}
+
+            {/* comment the next line if you want to access all pages without logging in. for example when you are not running backend and only running react frontend */}
+            <Route element={<ProtectedRoute />}> 
+              {/* Customer Routes */}
+              <Route path="/customer-request" element={<CustomerServiceForm />} />
+              <Route path="/customer-dashboard" element={<Dashboard />} />
+              <Route path="/request-history" element={<RequestHistory />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/request/:id" element={<RequestDetail />} />
               
-              {/* Protected Routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/customer-request" element={<CustomerServiceRequest />} />
-                <Route path="/customer-dashboard" element={<Dashboard />} />
-                <Route path="/request-history" element={<RequestHistory />} />
-                <Route path="/documents" element={<Documents />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/request/:id" element={<RequestDetail />} />
-                <Route path="/professional-form" element={<ProfessionalForm />} />
-              </Route>
+              {/* Professional Routes */}
+              <Route path="/bid-management" element={<BidManagement />} />
+              <Route path="/professional-profile" element={<ProfessionalProfile />} />
+              
+
+            </Route>
 
               {/* Fallback Route */}
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -61,4 +64,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;
